@@ -15,7 +15,7 @@ Lock/unlock security system on **ESP32-WROOM-32 DevKit V1** with:
 - **Auto-lock** after 30 seconds of inactivity
 - **Code change** feature with confirmation
 - **STDIO retargeting**: `printf()` → LCD, `scanf()`/`getchar()` → Keypad
-- **Visual feedback**: Centered text, asterisk masking, last-char reveal (500ms)
+- **Visual feedback**: Left-aligned input, asterisk masking, last-char reveal (300ms)
 - **Hardware signaling**: Green/Red LEDs, buzzer beeps
 - **Persistent storage**: Code saved to NVS (survives reboots)
 
@@ -122,7 +122,12 @@ Lock/unlock security system on **ESP32-WROOM-32 DevKit V1** with:
 - Define all GPIO numbers as named constants (no magic numbers)
 - i2c bus configuration (speed, address, SDA/SCL)
 - Keypad row/column mappings
-- Timing constants (debounce, autolock, char reveal duration)
+- Timing constants:
+  - `DEBOUNCE_MS` = 50 (keypad debounce)
+  - `AUTOLOCK_SEC` = 30 (auto-lock timer)
+  - `CHAR_REVEAL_MS` = 300 (last char reveal, reduced from 500ms in Iter 8)
+  - `PIN_INPUT_START_COL` = 0 (left-aligned PIN entry, added in Iter 8)
+- LCD dimensions (20 cols × 4 rows)
 
 #### `lib/lcd_i2c/` - LCD Driver
 
@@ -203,27 +208,40 @@ typedef enum {
 
 #### `lib/stdio_redirect/` - STDIO Retargeting
 
-**API:**
+**API (Current - Iteration 7):**
 
 - `esp_err_t stdio_redirect_init(void)` — Initialize STDIO system
 - `int lcd_printf(const char *format, ...)` — Printf-style output to LCD
 - `int lcd_scanf(const char *format, ...)` — Scanf-style input from keypad
 - `void lcd_scanf_set_mode(input_mode_t mode)` — Set input masking mode
-- `void lcd_scanf_set_centered(bool centered)` — Enable/disable centered input
+- `void lcd_scanf_set_centered(bool centered)` — ⚠️ DEPRECATED in Iter 8 (removed)
+- `void lcd_scanf_set_digits_only(bool enabled)` — Restrict to 0-9 digits only
+
+**API (Planned - Iteration 8+):**
+
+- `void lcd_scanf_configure(input_mode_t mode, bool digits_only)` — Unified configuration
+- Input always left-aligned (centering removed for performance)
+- Non-blocking character reveal using FreeRTOS timer
+
+**API (Future - Iteration 9):**
+
+- True STDIO syscalls: `_write()`, `_read()` for standard `printf()`/`scanf()`
+- Wrappers kept for backward compatibility
 
 **Input Modes:**
 
 - `INPUT_MODE_NORMAL` — Display characters as-is
 - `INPUT_MODE_MASKED` — Display all as asterisks (*)
-- `INPUT_MODE_REVEAL_LAST` — Show last character for 500ms, then mask
+- `INPUT_MODE_REVEAL_LAST` — Show last character for 300ms (non-blocking), then mask
 
 **Features:**
 
 - Printf-style formatting with vsnprintf
 - Backspace (`*`) removes last character with visual update
 - Enter (`#`) ends input
-- Dynamic centering of input as user types
+- Left-aligned input (optimized, no flicker)
 - Automatic mode reset after each scanf
+- Digits-only filter for PIN entry
 
 #### `lib/lock_system/` - Lock State Machine & UI
 
@@ -270,9 +288,10 @@ typedef enum {
 
 **UI Behaviors:**
 
-- **Centered text**: Calculate start column = (20 - strlen(text)) / 2
-- **Masked input (unlock)**: Show asterisks `*` centered as user types
-- **New code entry**: Show last char for 500ms, then replace with `*`
+- **Centered text**: Static titles/messages centered (dynamic calculation)
+- **Left-aligned input**: PIN entry starts at column 0, no dynamic centering
+- **Masked input (unlock)**: Show asterisks `*` for each character
+- **New code entry**: Show last char for 300ms (non-blocking timer), then replace with `*`
 - **Backspace**: Move cursor back, overwrite with space, move back again
 - **Auto-lock timer**: FreeRTOS timer, reset on any activity, trigger after 30s
 
@@ -303,16 +322,16 @@ typedef enum {
     │ UNLOCKED │ ← Show menu, start 30s autolock timer
     └────┬─────┘
          │
-         ├─→ User selects "Lock" → LOCKED
-         ├─→ User selects "Change Code" → CHANGING_CODE
+         ├─→ User presses 'D' → LOCKED (manual lock) [Updated in Iter 8]
+         ├─→ User presses 'A' → CHANGING_CODE (change PIN) [Updated in Iter 8]
          └─→ 30s timeout → LOCKED (auto-lock)
 
 CHANGING_CODE:
   1. Prompt "Enter current PIN:"
-  2. Validate → If wrong, return to UNLOCKED with error
+  2. Validate → If wrong, return to MENU with error
   3. Prompt "Enter new PIN (4-8 digits):"
   4. Prompt "Confirm new PIN:"
-  5. If match → Save to NVS → UNLOCKED
+  5. If match → Save to NVS → MENU
   6. If mismatch → Error, retry step 3
 ```
 
@@ -322,8 +341,8 @@ CHANGING_CODE:
 | ----- | ----- | ------ |
 | FIRST_BOOT_SETUP | User enters PIN | Prompt confirmation → Save to NVS → LOCKED |
 | LOCKED | User enters PIN | Validate → match: UNLOCKED ✅ / mismatch: AUTH_FAILED ❌ |
-| UNLOCKED | '1' key | Lock manually → LOCKED |
-| UNLOCKED | '2' key | Change code → CHANGING_CODE |
+| UNLOCKED | 'D' key | Lock manually → LOCKED |
+| UNLOCKED | 'A' key | Change code → CHANGING_CODE |
 | UNLOCKED | 30s idle | Auto-lock → LOCKED |
 | CHANGING_CODE | Validated old PIN | Prompt new code |
 | CONFIRMING_CODE | Codes match | Save to NVS → Success |
@@ -745,6 +764,134 @@ RS = Register Select (0=command, 1=data)
 
 ---
 
+### **ITERATION 8: UX Improvements & Code Refactoring**
+
+**Goal:** Eliminate display flicker, fix input lag bug, refactor redundant code, switch to A/D menu keys.
+
+**Issues to Fix:**
+
+- Display flickers due to excessive `lcd_clear()` calls (17+ locations)
+- Character reveal causes 500ms blocking delay → missed keypresses
+- Dynamic centering causes per-keystroke flicker
+- Menu uses '1'/'2' keys instead of A-D function keys
+- Code redundancy in mode setup and PIN prompts
+
+**Tasks:**
+
+- [ ] **8.1 Switch Menu to A/D Keys**
+  - Update `lock_handler_menu()` in `lock_handlers.c`:
+    - 'D' key → Lock system
+    - 'A' key → Change PIN
+    - B/C → Reserved (error beep)
+  - Update menu display text to show "A. Change PIN" and "D. Lock System"
+  - Remove old '1'/'2' validation
+
+- [ ] **8.2 Eliminate Input Centering Flicker**
+  - In `stdio_redirect.c`:
+    - Remove centering logic from `display_input()`
+    - Switch to left-aligned input at fixed column position
+    - Remove `lcd_scanf_set_centered()` function entirely
+    - Update `lcd_scanf()` to display at `start_col` parameter
+    - Replace full-row clearing with targeted cursor positioning
+  - Update all state handlers to use left-aligned input
+
+- [ ] **8.3 Implement Non-Blocking Character Reveal**
+  - Create static FreeRTOS timer in `stdio_redirect.c`
+  - Replace blocking `vTaskDelay()` at line 169 with timer start
+  - Timer callback: mask only the last character (no full redraw)
+  - Cancel timer on backspace/enter to prevent stale updates
+  - Input loop continues immediately (no lag)
+  - Reduce `CHAR_REVEAL_MS` to 300ms for snappier UX
+
+- [ ] **8.4 Minimize LCD Clear Calls**
+  - In `lock_ui.c`:
+    - `lock_ui_display_title()`: clear only row 0, not entire screen
+    - `lock_ui_display_error()`: clear only rows 1-2
+    - `lock_ui_display_success()`: clear only rows 1-2
+    - `lock_ui_display_centered()`: remove space-clearing loop
+  - In `lock_handlers.c`:
+    - Keep `lcd_clear()` only for major state transitions
+    - Remove redundant clears in prompts/confirmations
+  - Optimize to ~5-6 clears total (vs 17+)
+
+- [ ] **8.5 Consolidate Redundant Code**
+  - Create `setup_pin_input(input_mode_t mode)` helper in `lock_handlers.c`
+  - Combines mode/digits setup in one call
+  - Replace 4 duplicate patterns in state handlers
+  - Merge `lcd_scanf_set_mode()` and `lcd_scanf_set_digits_only()` into single `lcd_scanf_configure(mode, digits_only)` in `stdio_redirect.c`
+  - Remove unused `lcd_scanf_set_centered()` from API
+
+- [ ] **8.6 Update Configuration**
+  - Add `#define PIN_INPUT_START_COL 0` to `config_pins.h`
+  - Change `#define CHAR_REVEAL_MS 300` (from 500ms)
+  - Update API documentation in header files
+
+**Verification:**
+
+- [ ] Menu: Press 'D' → locks, Press 'A' → change PIN flow
+- [ ] Rapid typing: No missed keypresses, immediate response
+- [ ] Character reveal: Last char shows ~300ms, doesn't block input
+- [ ] Visual: No screen flicker during PIN entry
+- [ ] All state transitions work smoothly
+- [ ] Code compiles without warnings
+
+---
+
+### **ITERATION 9: Bonus Features & True STDIO Integration**
+
+**Goal:** Add security features, power management, and implement true syscall-based STDIO.
+
+**Tasks:**
+
+- [ ] **9.1 Failed Attempt Counter**
+  - Add `failed_attempts` counter in `lock_system.c`
+  - Increment on wrong PIN in `STATE_LOCKED`
+  - After 3 failures:
+    - Display "TOO MANY ATTEMPTS"
+    - Red LED continuous, loud buzzer pattern
+    - Lock system for 30 seconds
+    - Display countdown timer
+  - Reset counter on successful unlock
+  - Persist counter to NVS (optional)
+
+- [ ] **9.2 LCD Backlight Auto-Dim**
+  - Create backlight timer in `lock_system.c`
+  - Dim backlight to 50% after 15 seconds of inactivity
+  - Turn off backlight after 60 seconds
+  - Any keypress restores full brightness
+  - Use PWM on backlight pin for dimming (advanced)
+  - Or simple on/off with `lcd_backlight()` function
+
+- [ ] **9.3 True STDIO Syscall Implementation**
+  - **Critical: Do this LAST after everything else works**
+  - In `stdio_redirect.c`:
+    - Implement `_write(int fd, const char *buf, size_t count)` syscall
+    - Implement `_read(int fd, char *buf, size_t count)` syscall
+    - Route stdout (fd=1) to LCD via `lcd_putc()` loop
+    - Route stdin (fd=0) from keypad via `keypad_getkey_blocking()`
+    - Handle character echo, backspace, newline in `_read()`
+  - Keep `lcd_printf()`/`lcd_scanf()` as legacy wrappers for compatibility
+  - Update all state handlers to use standard `printf()`/`scanf()`
+  - Test unbuffered I/O: `setvbuf(stdout, NULL, _IONBF, 0)`
+  - **Fallback plan**: Keep wrappers if syscall approach breaks
+
+- [ ] **9.4 Additional Polish**
+  - Add welcome message on first boot: "SECURITY LOCK v1.0"
+  - Store custom welcome message in NVS (optional)
+  - Add PIN strength indicator during setup (weak/medium/strong)
+  - Implement proper state recovery on watchdog reset
+  - Add debug logging via UART (not LCD)
+
+**Verification:**
+
+- [ ] Failed attempts: Lock after 3 wrong PINs, countdown works
+- [ ] Backlight: Dims after idle, restores on keypress
+- [ ] STDIO: `printf("test")` prints to LCD, `scanf("%s", buf)` reads from keypad
+- [ ] All existing features still work
+- [ ] System stable, no crashes or watchdog resets
+
+---
+
 ## ✅ TESTING & VERIFICATION
 
 ### Unit Tests (per iteration)
@@ -780,17 +927,35 @@ RS = Register Select (0=command, 1=data)
 
 ### Lab Demonstration Checklist
 
-- [ ] Wokwi simulation runs without errors
-- [ ] Hardware connections match `diagram.json`
-- [ ] Code structured in separate modules (reusable)
-- [ ] STDIO `printf()`/`scanf()` working (demonstrate)
-- [ ] Lock/unlock with keypad works
-- [ ] LED feedback correct (green=success, red=error)
-- [ ] Buzzer patterns play
-- [ ] Code persists across reboots (NVS)
-- [ ] Auto-lock after 30s works
-- [ ] Code follows CamelCase standard
-- [ ] No magic numbers (all in `config_pins.h`)
+**Core Requirements (Iterations 1-7):**
+
+- [x] Wokwi simulation runs without errors
+- [x] Hardware connections match `diagram.json`
+- [x] Code structured in separate modules (reusable)
+- [x] STDIO `printf()`/`scanf()` working (demonstrate)
+- [x] Lock/unlock with keypad works
+- [x] LED feedback correct (green=success, red=error)
+- [x] Buzzer patterns play
+- [x] Code persists across reboots (NVS)
+- [x] Auto-lock after 30s works
+- [x] Code follows snake_case standard (C convention)
+- [x] No magic numbers (all in `config_pins.h`)
+
+**Iteration 8 - UX Improvements:**
+
+- [ ] Menu uses A/D keys (not 1/2)
+- [ ] No display flicker during PIN entry
+- [ ] Character reveal doesn't block input (responsive typing)
+- [ ] Left-aligned PIN input (clean, no centering shifts)
+- [ ] Rapid keypresses work without lag
+
+**Iteration 9 - Bonus Features:**
+
+- [ ] Failed attempts counter (locks after 3 tries)
+- [ ] Backlight auto-dim after idle
+- [ ] True `printf()`/`scanf()` work (syscalls, not wrappers)
+- [ ] Welcome message displayed
+- [ ] All features integrated smoothly
 
 ---
 
@@ -845,13 +1010,16 @@ RS = Register Select (0=command, 1=data)
 ## 🎯 BONUS OPPORTUNITIES (+10%)
 
 - **Pre-lab validation**: Test components before lab session
-- **Additional features**:
-  - Multiple user codes (admin + user roles)
-  - Failed attempt counter (lock after 3 tries)
-  - Custom welcome message stored in NVS
-  - LCD backlight auto-dim after idle
-  - Morse code mode for buzzer output
+- **Additional features** (now part of Iteration 9):
+  - ✅ **Planned:** Failed attempt counter (lock after 3 tries) - Task 9.1
+  - ✅ **Planned:** LCD backlight auto-dim after idle - Task 9.2
+  - ✅ **Planned:** True STDIO syscalls (_write/_read) - Task 9.3
+  - Multiple user codes (admin + user roles) - Future
+  - Custom welcome message stored in NVS - Part of 9.4
+  - Morse code mode for buzzer output - Future
 - Contact instructor to confirm bonus eligibility
+
+**Note:** Iterations 8 and 9 go beyond core requirements and demonstrate advanced ESP-IDF skills, code optimization, and professional embedded systems practices.
 
 ---
 
@@ -884,9 +1052,9 @@ RS = Register Select (0=command, 1=data)
 
 ## 🚀 CURRENT STATUS
 
-**Iteration:** Iteration 7 (Auto-Lock & Polish) - COMPLETE ✅
-**Completed Tasks:** 40+/40+
-**Progress:** 100% Complete! 🎉
+**Iteration:** Iteration 8 (UX Improvements & Refactoring) - IN PROGRESS ⚙️
+**Completed Tasks:** 40+/55+
+**Progress:** 73% Complete
 
 - ✅ Iteration 1: COMPLETE - All hardware drivers working
   - LCD i2c, Keypad, LED, Buzzer modules fully functional
@@ -960,26 +1128,55 @@ RS = Register Select (0=command, 1=data)
     - Minimal LCD refreshes
     - Auto-reset of input modes
 
-**Project Complete!** ✅
+- ⚙️ **Iteration 8: IN PROGRESS - UX Improvements & Refactoring**
+  - **Issues identified:**
+    - Display flicker from 17+ `lcd_clear()` calls
+    - 500ms blocking delay causes missed keypresses
+    - Dynamic centering causes per-keystroke flicker
+    - Menu using numeric keys instead of A/D function keys
+  - **Planned improvements:**
+    - Menu keys: D=Lock, A=Change PIN
+    - Left-aligned input (eliminates centering flicker)
+    - Non-blocking character reveal (FreeRTOS timer)
+    - Minimize LCD clears to ~5-6 total
+    - Consolidate redundant code patterns
+    - Reduce CHAR_REVEAL_MS to 300ms
 
-All core requirements implemented:
+- ⏳ **Iteration 9: PLANNED - Bonus Features & True STDIO**
+  - Failed attempt counter (3 tries → 30s lockout)
+  - LCD backlight auto-dim (15s → dim, 60s → off)
+  - **TRUE STDIO syscalls** (_write/_read) instead of wrappers
+  - Welcome message customization
+  - PIN strength indicator
+  - Debug logging via UART
+
+**Current Core Implementation:** ✅ COMPLETE
+
+All original requirements met:
 
 - ✓ Setup wizard on first boot
 - ✓ Lock/Unlock with keypad authentication
 - ✓ Auto-lock after 30 seconds
 - ✓ PIN change with confirmation
-- ✓ STDIO retargeting (lcd_printf/lcd_scanf)
+- ✓ STDIO retargeting (lcd_printf/lcd_scanf wrappers)
 - ✓ Centered text, masked input, last-char reveal
 - ✓ LED & buzzer feedback
 - ✓ NVS persistent storage
 - ✓ Modular, maintainable architecture
 
+**Improvements in Progress:**
+
+1. Fix display flicker and input lag (Iteration 8)
+2. Optimize code redundancy
+3. Switch to A/D menu keys for better UX
+
 **Next Steps:**
 
-1. ✓ Test all features in Wokwi simulator
-2. Prepare lab demonstration
-3. Write lab report
-4. (Optional) Implement bonus features
+1. Complete Iteration 8 (UX fixes & refactoring)
+2. Implement Iteration 9 (bonus features)
+3. Final testing in Wokwi simulator
+4. Prepare lab demonstration
+5. Write lab report
 
 ---
 
@@ -987,3 +1184,4 @@ All core requirements implemented:
 **Project Type:** Embedded Systems Lab Assignment
 **Platform:** ESP32-IDF 5.5.0 + Wokwi
 **Target:** Lock/Unlock Security System with STDIO Retargeting
+**Status:** Core Complete ✅ | Optimizations In Progress ⚙️

@@ -23,7 +23,7 @@ static const char *TAG = "MAIN";
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "=== ESP32 Lock System - Iteration 4 ===");
+    ESP_LOGI(TAG, "=== ESP32 Lock System ===");
     ESP_LOGI(TAG, "Initializing peripherals...");
     
     esp_err_t ret;
@@ -68,8 +68,8 @@ void app_main(void)
     // Display welcome message on LCD
     lcd_clear();
     lcd_printf("=== LOCK SYSTEM ===\n");
-    lcd_printf("  Iteration 4\n");
-    lcd_printf("  NVS Storage\n");
+    lcd_printf("\n");
+    lcd_printf("\n");
     lcd_printf("  Starting...");
     
     // Success beep

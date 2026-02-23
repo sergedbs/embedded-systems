@@ -44,10 +44,8 @@ lock_state_t lock_handler_setting_code(lock_state_context_t *ctx)
     lcd_set_cursor(0, 3);
     lcd_printf("Enter: ");
     
-    // Enable last-char reveal mode, centering, and digits-only filter
-    lcd_scanf_set_mode(INPUT_MODE_REVEAL_LAST);
-    lcd_scanf_set_centered(true);
-    lcd_scanf_set_digits_only(true);
+    // Configure: reveal last char + digits only
+    lcd_scanf_configure(INPUT_MODE_REVEAL_LAST, true);
     
     // Read new PIN
     lcd_scanf("%8s", ctx->new_pin);
@@ -92,10 +90,8 @@ lock_state_t lock_handler_confirming_code(lock_state_context_t *ctx)
     lcd_set_cursor(0, 3);
     lcd_printf("Enter: ");
     
-    // Enable last-char reveal mode, centering, and digits-only filter
-    lcd_scanf_set_mode(INPUT_MODE_REVEAL_LAST);
-    lcd_scanf_set_centered(true);
-    lcd_scanf_set_digits_only(true);
+    // Configure: reveal last char + digits only
+    lcd_scanf_configure(INPUT_MODE_REVEAL_LAST, true);
     
     // Read confirmation
     lcd_scanf("%8s", pin_input);
@@ -151,10 +147,8 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
     // Turn off all LEDs
     led_all_off();
     
-    // Enable masked input (asterisks only), centering, and digits-only filter
-    lcd_scanf_set_mode(INPUT_MODE_MASKED);
-    lcd_scanf_set_centered(true);
-    lcd_scanf_set_digits_only(true);
+    // Configure: masked input + digits only
+    lcd_scanf_configure(INPUT_MODE_MASKED, true);
     
     // Read PIN from keypad
     lcd_scanf("%15s", pin_input);
@@ -166,15 +160,8 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
         // Correct PIN - unlock
         ESP_LOGI(TAG, "Correct PIN - unlocking");
         
-        lock_ui_display_title("UNLOCKED");
-        lock_ui_display_centered("Access Granted!", 3);
-        
-        // Success feedback
-        led_success();
-        buzzer_success();
-        
-        vTaskDelay(pdMS_TO_TICKS(1500));
-        led_all_off();
+        // Display success message (no title to prevent double refresh)
+        lock_ui_display_success("Access Granted!", 1500);
         
         return STATE_UNLOCKED;
     } else {
@@ -197,14 +184,10 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
 
 lock_state_t lock_handler_unlocked(lock_state_context_t *ctx)
 {
-    // UNLOCKED state: show success message, then go to menu
-    lock_ui_display_title("UNLOCKED");
-    lock_ui_display_centered("Access Granted!", 3);
+    // UNLOCKED state: transition directly to menu
+    // (success message already shown by lock_handler_locked)
     
-    // Green LED indicates unlocked
-    led_set(LED_GREEN, true);
-    
-    vTaskDelay(pdMS_TO_TICKS(1500));
+    // Green LED stays on from previous state
     
     // Start auto-lock timer when entering menu
     lock_system_start_autolock();
@@ -216,7 +199,7 @@ lock_state_t lock_handler_menu(lock_state_context_t *ctx)
 {
     lock_ui_display_title("MENU");
     lcd_set_cursor(0, 3);
-    lcd_printf("1. Lock  2. Change");
+    lcd_printf("A. Change  D. Lock");
     
     // Green LED stays on
     led_set(LED_GREEN, true);
@@ -231,7 +214,7 @@ lock_state_t lock_handler_menu(lock_state_context_t *ctx)
         // Reset auto-lock timer on any keypress
         lock_system_reset_autolock();
         
-        if (key == '1') {
+        if (key == 'D') {
             // Lock system
             ESP_LOGI(TAG, "User selected: Lock");
             lock_system_stop_autolock();
@@ -241,7 +224,7 @@ lock_state_t lock_handler_menu(lock_state_context_t *ctx)
             led_all_off();
             return STATE_LOCKED;
             
-        } else if (key == '2') {
+        } else if (key == 'A') {
             // Change PIN
             ESP_LOGI(TAG, "User selected: Change PIN");
             lock_system_stop_autolock();
@@ -267,10 +250,8 @@ lock_state_t lock_handler_changing_code(lock_state_context_t *ctx)
     lcd_set_cursor(0, 3);
     lcd_printf("Enter: ");
     
-    // Enable masked input, centering, and digits-only filter
-    lcd_scanf_set_mode(INPUT_MODE_MASKED);
-    lcd_scanf_set_centered(true);
-    lcd_scanf_set_digits_only(true);
+    // Configure: masked input + digits only
+    lcd_scanf_configure(INPUT_MODE_MASKED, true);
     
     // Read current PIN
     lcd_scanf("%8s", pin_input);

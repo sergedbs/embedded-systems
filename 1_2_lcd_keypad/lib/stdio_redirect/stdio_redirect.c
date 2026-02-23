@@ -15,20 +15,51 @@
 #include "buzzer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/timers.h"
 
 #define LCD_COLS 20
 
 // Input mode settings
 static input_mode_t current_input_mode = INPUT_MODE_NORMAL;
-static bool centered_input = false;
 static bool digits_only_filter = false;
+
+// Character reveal timer (non-blocking)
+static TimerHandle_t reveal_timer = NULL;
+static char *reveal_buffer = NULL;
+static size_t reveal_length = 0;
+static uint8_t reveal_row = 0;
+static uint8_t reveal_col = 0;
+
+/**
+ * @brief Timer callback to mask the last character after reveal delay
+ */
+static void reveal_timer_callback(TimerHandle_t xTimer)
+{
+    if (reveal_buffer && reveal_length > 0) {
+        // Mask the last character
+        lcd_set_cursor(reveal_col + reveal_length - 1, reveal_row);
+        lcd_putc('*');
+    }
+}
 
 /**
  * @brief Initialize STDIO redirection
  */
 esp_err_t stdio_redirect_init(void)
 {
-    // Nothing special needed for wrapper-based approach
+    // Create the reveal timer (one-shot, non-auto-reload)
+    reveal_timer = xTimerCreate(
+        "reveal_timer",
+        pdMS_TO_TICKS(CHAR_REVEAL_MS),
+        pdFALSE,  // One-shot timer
+        NULL,
+        reveal_timer_callback
+    );
+    
+    if (reveal_timer == NULL) {
+        return ESP_FAIL;
+    }
+    
     return ESP_OK;
 }
 
@@ -41,18 +72,19 @@ void lcd_scanf_set_mode(input_mode_t mode)
 }
 
 /**
- * @brief Enable/disable centered input display
- */
-void lcd_scanf_set_centered(bool centered)
-{
-    centered_input = centered;
-}
-
-/**
  * @brief Set digits-only filter for PIN entry
  */
 void lcd_scanf_set_digits_only(bool digits_only)
 {
+    digits_only_filter = digits_only;
+}
+
+/**
+ * @brief Unified configuration for lcd_scanf (reduces redundancy)
+ */
+void lcd_scanf_configure(input_mode_t mode, bool digits_only)
+{
+    current_input_mode = mode;
     digits_only_filter = digits_only;
 }
 
@@ -72,25 +104,14 @@ int lcd_printf(const char *format, ...)
 }
 
 /**
- * @brief Helper function to display input with masking and centering
+ * @brief Helper function to display input with masking (left-aligned, no flicker)
  */
 static void display_input(const char *buffer, size_t length, uint8_t row, uint8_t start_col)
 {
-    // Clear the display area
-    lcd_set_cursor(0, row);
-    for (uint8_t i = 0; i < LCD_COLS; i++) {
-        lcd_putc(' ');
-    }
-    
-    // Calculate centered position if needed
-    uint8_t col = start_col;
-    if (centered_input && length > 0) {
-        col = (LCD_COLS - length) / 2;
-    }
+    // Set cursor to start position
+    lcd_set_cursor(start_col, row);
     
     // Display the input based on mode
-    lcd_set_cursor(col, row);
-    
     if (current_input_mode == INPUT_MODE_NORMAL) {
         // Display as-is
         for (size_t i = 0; i < length; i++) {
@@ -111,21 +132,33 @@ static void display_input(const char *buffer, size_t length, uint8_t row, uint8_
             }
         }
     }
+    
+    // Clear remaining characters to end of line (prevents leftover text)
+    size_t chars_to_clear = (start_col + PIN_MAX_LENGTH) - (start_col + length);
+    for (size_t i = 0; i < chars_to_clear; i++) {
+        lcd_putc(' ');
+    }
 }
 
 /**
  * @brief Scanf-like function that reads from keypad
  * 
- * Supports masking, last-char reveal, and centered input.
+ * Supports masking, non-blocking last-char reveal, and left-aligned input.
  */
 int lcd_scanf(const char *format, ...)
 {
     char buffer[64];
     size_t idx = 0;
     
-    // Get current cursor position
-    uint8_t start_row = 3;  // Assume we're on row 3 for input
-    uint8_t start_col = 0;
+    // Get current cursor position (right after the prompt)
+    uint8_t start_col = lcd_get_cursor_col();
+    uint8_t start_row = lcd_get_cursor_row();
+    
+    // Clear only the input area (preserve prompts before start_col)
+    for (uint8_t i = start_col; i < LCD_COLS; i++) {
+        lcd_putc(' ');
+    }
+    lcd_set_cursor(start_col, start_row);
     
     // Read characters until enter ('#') is pressed
     while (idx < sizeof(buffer) - 1) {
@@ -145,15 +178,26 @@ int lcd_scanf(const char *format, ...)
             // Enter pressed - end input
             buffer[idx] = '\0';
             
-            // If in REVEAL_LAST mode, mask the last character before exit
+            // Stop reveal timer if active
+            if (reveal_timer != NULL && xTimerIsTimerActive(reveal_timer)) {
+                xTimerStop(reveal_timer, 0);
+            }
+            
+            // If in REVEAL_LAST mode, mask the last character immediately
             if (current_input_mode == INPUT_MODE_REVEAL_LAST && idx > 0) {
-                display_input(buffer, idx, start_row, start_col);
+                lcd_set_cursor(start_col + idx - 1, start_row);
+                lcd_putc('*');
             }
             
             break;
         } else if (key == '*') {
             // Backspace - remove last character
             if (idx > 0) {
+                // Stop reveal timer if active
+                if (reveal_timer != NULL && xTimerIsTimerActive(reveal_timer)) {
+                    xTimerStop(reveal_timer, 0);
+                }
+                
                 idx--;
                 display_input(buffer, idx, start_row, start_col);
             }
@@ -164,10 +208,21 @@ int lcd_scanf(const char *format, ...)
             // Display immediately
             display_input(buffer, idx, start_row, start_col);
             
-            // If in REVEAL_LAST mode, wait 500ms then mask the character
+            // If in REVEAL_LAST mode, start non-blocking timer to mask character
             if (current_input_mode == INPUT_MODE_REVEAL_LAST && idx > 0) {
-                vTaskDelay(pdMS_TO_TICKS(CHAR_REVEAL_MS));
-                display_input(buffer, idx, start_row, start_col);
+                // Stop any existing timer
+                if (reveal_timer != NULL && xTimerIsTimerActive(reveal_timer)) {
+                    xTimerStop(reveal_timer, 0);
+                }
+                
+                // Update timer context
+                reveal_buffer = buffer;
+                reveal_length = idx;
+                reveal_row = start_row;
+                reveal_col = start_col;
+                
+                // Start timer (non-blocking - input loop continues immediately)
+                xTimerStart(reveal_timer, 0);
             }
         }
     }
@@ -182,8 +237,11 @@ int lcd_scanf(const char *format, ...)
     
     // Reset modes to defaults
     current_input_mode = INPUT_MODE_NORMAL;
-    centered_input = false;
     digits_only_filter = false;
+    
+    // Clear timer context
+    reveal_buffer = NULL;
+    reveal_length = 0;
     
     return ret;
 }

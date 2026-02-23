@@ -58,9 +58,14 @@
 // Application Timing Constants
 // ============================================================================
 #define AUTOLOCK_TIMEOUT_SEC    30      // Auto-lock after 30 seconds
-#define CHAR_REVEAL_MS          500     // Show last char for 500ms when entering new PIN
+#define CHAR_REVEAL_MS          300     // Show last char for 300ms when entering new PIN (non-blocking)
 #define PIN_MIN_LENGTH          4       // Minimum PIN length
 #define PIN_MAX_LENGTH          8       // Maximum PIN length
+
+// ============================================================================
+// UI Display Constants
+// ============================================================================
+#define PIN_INPUT_START_COL     0       // Left-aligned PIN input (Iteration 8)
 
 // ============================================================================
 // NVS Storage Configuration

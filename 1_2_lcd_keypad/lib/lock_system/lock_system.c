@@ -40,22 +40,13 @@ static lock_state_context_t state_ctx = {
 
 /**
  * @brief Auto-lock timer callback - transitions to LOCKED state
+ * NON-BLOCKING: Timer callbacks must not have delays or blocking LCD operations
  */
 static void autolock_timer_callback(TimerHandle_t xTimer)
 {
     ESP_LOGI(TAG, "Auto-lock timer expired - locking system");
     
-    // Turn off LEDs
-    led_all_off();
-    
-    // Display auto-lock message
-    lcd_clear();
-    lock_ui_display_title("AUTO-LOCKED");
-    lock_ui_display_centered("Idle timeout", 3);
-    
-    vTaskDelay(pdMS_TO_TICKS(1500));
-    
-    // Transition to locked state
+    // Non-blocking: just transition state, let state machine handle display
     current_state = STATE_LOCKED;
     autolock_enabled = false;
 }

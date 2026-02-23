@@ -59,18 +59,21 @@ int lcd_printf(const char *format, ...);
 void lcd_scanf_set_mode(input_mode_t mode);
 
 /**
- * @brief Enable/disable centered input display
- * 
- * @param centered true to center input, false for normal
- */
-void lcd_scanf_set_centered(bool centered);
-
-/**
  * @brief Set character filter for input (e.g., digits only)
  * 
  * @param digits_only true to accept only 0-9, false to accept all
  */
 void lcd_scanf_set_digits_only(bool digits_only);
+
+/**
+ * @brief Unified configuration for lcd_scanf (Iteration 8)
+ * 
+ * Combines mode and filter settings in one call to reduce redundancy.
+ * 
+ * @param mode Input mode (NORMAL, MASKED, or REVEAL_LAST)
+ * @param digits_only true to accept only 0-9, false to accept all
+ */
+void lcd_scanf_configure(input_mode_t mode, bool digits_only);
 
 /**
  * @brief Scanf-like function that reads from keypad

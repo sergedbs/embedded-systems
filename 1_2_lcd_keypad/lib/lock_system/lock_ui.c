@@ -28,14 +28,10 @@ void lock_ui_display_centered(const char *text, uint8_t row)
     // Calculate starting column for centered text
     uint8_t start_col = (LCD_COLS - text_len) / 2;
     
-    // Clear the row with spaces
-    lcd_set_cursor(0, row);
-    for (uint8_t i = 0; i < LCD_COLS; i++) {
-        lcd_putc(' ');
-    }
+    // Clear only the area needed (optimization: no full-row clear for static text)
+    lcd_set_cursor(start_col, row);
     
     // Display centered text
-    lcd_set_cursor(start_col, row);
     for (size_t i = 0; i < text_len; i++) {
         lcd_putc(text[i]);
     }
@@ -43,27 +39,34 @@ void lock_ui_display_centered(const char *text, uint8_t row)
 
 void lock_ui_display_title(const char *title)
 {
-    lcd_clear();
-    
-    // Top border
+    // Clear rows 0-2
+    lcd_set_cursor(0, 0);
     for (uint8_t i = 0; i < LCD_COLS; i++) {
-        lcd_putc('=');
+        lcd_putc(' ');
     }
-    lcd_putc('\n');
     
-    // Title centered
+    // Title centered on row 1
+    lcd_set_cursor(0, 1);
+    for (uint8_t i = 0; i < LCD_COLS; i++) {
+        lcd_putc(' ');
+    }
     lock_ui_display_centered(title, 1);
     
-    // Bottom border
+    // Clear row 2
     lcd_set_cursor(0, 2);
     for (uint8_t i = 0; i < LCD_COLS; i++) {
-        lcd_putc('=');
+        lcd_putc(' ');
     }
 }
 
 void lock_ui_display_error(const char *message, uint32_t delay_ms)
 {
-    lcd_clear();
+    // Clear rows 1-3 for error message (includes input row)
+    lcd_set_cursor(0, 1);
+    for (uint8_t i = 0; i < LCD_COLS * 3; i++) {
+        lcd_putc(' ');
+    }
+    
     lock_ui_display_centered("ERROR!", 1);
     lock_ui_display_centered(message, 2);
     
@@ -79,7 +82,12 @@ void lock_ui_display_error(const char *message, uint32_t delay_ms)
 
 void lock_ui_display_success(const char *message, uint32_t delay_ms)
 {
-    lcd_clear();
+    // Clear rows 1-3 for success message (includes input row)
+    lcd_set_cursor(0, 1);
+    for (uint8_t i = 0; i < LCD_COLS * 3; i++) {
+        lcd_putc(' ');
+    }
+    
     lock_ui_display_centered("SUCCESS!", 1);
     lock_ui_display_centered(message, 2);
     
@@ -91,4 +99,25 @@ void lock_ui_display_success(const char *message, uint32_t delay_ms)
     }
     
     led_all_off();
+}
+
+void lock_ui_clear_content(void)
+{
+    // Clear only rows 2-3 (content area), keeping title intact
+    lcd_set_cursor(0, 2);
+    for (uint8_t i = 0; i < LCD_COLS * 2; i++) {
+        lcd_putc(' ');
+    }
+}
+
+void lock_ui_clear_row(uint8_t row)
+{
+    if (row >= LCD_ROWS) {
+        return;
+    }
+    
+    lcd_set_cursor(0, row);
+    for (uint8_t i = 0; i < LCD_COLS; i++) {
+        lcd_putc(' ');
+    }
 }

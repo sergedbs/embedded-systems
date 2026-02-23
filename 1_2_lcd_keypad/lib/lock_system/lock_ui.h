@@ -40,4 +40,18 @@ void lock_ui_display_error(const char *message, uint32_t delay_ms);
  */
 void lock_ui_display_success(const char *message, uint32_t delay_ms);
 
+/**
+ * @brief Clear content area (rows 2-3) without clearing title
+ * 
+ * Use this instead of lcd_clear() to reduce flicker during state transitions.
+ */
+void lock_ui_clear_content(void);
+
+/**
+ * @brief Clear a specific LCD row
+ * 
+ * @param row Row number (0-3) to clear
+ */
+void lock_ui_clear_row(uint8_t row);
+
 #endif // LOCK_UI_H
