@@ -10,13 +10,14 @@
 #include "keypad.h"
 #include "led.h"
 #include "buzzer.h"
+#include "stdio_redirect.h"
 #include "config_pins.h"
 
 static const char *TAG = "MAIN";
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "=== ESP32 Lock System - Iteration 1 Test ===");
+    ESP_LOGI(TAG, "=== ESP32 Lock System - Iteration 2 Test ===");
     ESP_LOGI(TAG, "Initializing peripherals...");
     
     // Initialize all peripherals
@@ -50,111 +51,70 @@ void app_main(void)
         return;
     }
     
+    // Initialize STDIO redirection
+    ret = stdio_redirect_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "STDIO redirection initialization failed!");
+        return;
+    }
+    
     ESP_LOGI(TAG, "All peripherals initialized successfully!");
     
     // Display welcome message on LCD
     lcd_clear();
-    lcd_set_cursor(0, 0);
-    lcd_print("  ESP32 Lock System");
-    lcd_set_cursor(0, 1);
-    lcd_print("    Iteration 1");
-    lcd_set_cursor(0, 2);
-    lcd_print("  Hardware Test");
-    lcd_set_cursor(0, 3);
-    lcd_print("Press any key...");
+    lcd_printf("  ESP32 Lock System\n");
+    lcd_printf("    Iteration 2\n");
+    lcd_printf("  STDIO Redirect\n");
+    lcd_printf("Press any key...");
     
-    // Success beep
+    // Success beep and LED blink
     vTaskDelay(pdMS_TO_TICKS(500));
     buzzer_success();
     
-    // Blink LEDs to show all is working
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) {
         led_set(LED_GREEN, true);
         vTaskDelay(pdMS_TO_TICKS(200));
         led_set(LED_GREEN, false);
-        led_set(LED_RED, true);
         vTaskDelay(pdMS_TO_TICKS(200));
-        led_set(LED_RED, false);
     }
     
     vTaskDelay(pdMS_TO_TICKS(2000));
     
-    // Main test loop
-    lcd_clear();
-    lcd_set_cursor(0, 0);
-    lcd_print("Press keys to test");
-    lcd_set_cursor(0, 1);
-    lcd_print("# = Clear screen");
-    lcd_set_cursor(0, 3);
-    lcd_print("> ");
-    
-    ESP_LOGI(TAG, "Entering keypad test loop...");
-    
-    uint8_t col = 2;
-    uint8_t row = 3;
+    // STDIO Redirection Test Loop
+    ESP_LOGI(TAG, "Starting STDIO redirection test...");
     
     while (1) {
-        // Wait for key press
-        char key = keypad_getkey_blocking();
+        char input[16];
         
-        ESP_LOGI(TAG, "Key pressed: '%c'", key);
+        lcd_clear();
+        lcd_printf("Type something:\n");
+        lcd_printf("(* = backspace)\n");
+        lcd_printf("(# = enter)\n");
+        lcd_printf("> ");
         
-        // Play beep on keypress
-        buzzer_beep(50);
+        // Read user input via keypad using lcd_scanf
+        lcd_scanf("%15s", input);
         
-        // Handle special keys
-        if (key == '#') {
-            // Clear screen
-            lcd_clear();
-            lcd_set_cursor(0, 0);
-            lcd_print("Press keys to test");
-            lcd_set_cursor(0, 1);
-            lcd_print("# = Clear screen");
-            lcd_set_cursor(0, 3);
-            lcd_print("> ");
-            col = 2;
-            row = 3;
-            led_all_off();
-        } else if (key == '*') {
-            // Backspace
-            if (col > 2) {
-                col--;
-                lcd_set_cursor(col, row);
-                lcd_putc(' ');
-                lcd_set_cursor(col, row);
-            }
-        } else if (key == 'A') {
-            // Toggle green LED
-            static bool green_state = false;
-            green_state = !green_state;
-            led_set(LED_GREEN, green_state);
-        } else if (key == 'B') {
-            // Toggle red LED
-            static bool red_state = false;
-            red_state = !red_state;
-            led_set(LED_RED, red_state);
-        } else if (key == 'C') {
-            // Success pattern
-            led_success();
-            buzzer_success();
-        } else if (key == 'D') {
-            // Error pattern
-            led_error();
-            buzzer_error();
-        } else {
-            // Normal character - display it
-            lcd_set_cursor(col, row);
-            lcd_putc(key);
-            col++;
-            
-            // Wrap to next line if needed
-            if (col >= LCD_COLS) {
-                col = 0;
-                row++;
-                if (row >= LCD_ROWS) {
-                    row = 0;
-                }
-            }
+        ESP_LOGI(TAG, "User entered: '%s'", input);
+        
+        // Display what user typed
+        lcd_clear();
+        lcd_printf("You typed:\n");
+        lcd_printf("%s\n", input);
+        lcd_printf("\n");
+        lcd_printf("Press # to continue");
+        
+        // Feedback: success beep and green LED
+        led_set(LED_GREEN, true);
+        buzzer_success();
+        vTaskDelay(pdMS_TO_TICKS(100));
+        led_set(LED_GREEN, false);
+        
+        // Wait for user to press # to continue
+        while (keypad_getkey_blocking() != '#') {
+            // Wait for # key
         }
+        
+        buzzer_beep(50);
     }
 }

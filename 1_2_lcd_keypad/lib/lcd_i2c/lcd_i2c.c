@@ -239,6 +239,20 @@ void lcd_putc(char c)
         return;
     }
     
+    if (c == '\b') {
+        // Backspace: move cursor back one position
+        if (current_col > 0) {
+            current_col--;
+            lcd_set_cursor(current_col, current_row);
+        } else if (current_row > 0) {
+            // If at start of line, move to end of previous line
+            current_row--;
+            current_col = LCD_COLS - 1;
+            lcd_set_cursor(current_col, current_row);
+        }
+        return;
+    }
+    
     // Write character
     lcd_write_data((uint8_t)c);
     current_col++;
@@ -278,4 +292,14 @@ void lcd_clear_row(uint8_t row)
         lcd_putc(' ');
     }
     lcd_set_cursor(0, row);
+}
+
+uint8_t lcd_get_cursor_col(void)
+{
+    return current_col;
+}
+
+uint8_t lcd_get_cursor_row(void)
+{
+    return current_row;
 }

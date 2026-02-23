@@ -65,4 +65,18 @@ void lcd_home(void);
  */
 void lcd_clear_row(uint8_t row);
 
+/**
+ * @brief Get current cursor column position
+ * 
+ * @return Current column (0-19)
+ */
+uint8_t lcd_get_cursor_col(void);
+
+/**
+ * @brief Get current cursor row position
+ * 
+ * @return Current row (0-3)
+ */
+uint8_t lcd_get_cursor_row(void);
+
 #endif // LCD_I2C_H

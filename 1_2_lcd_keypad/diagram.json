@@ -56,6 +56,8 @@
     }
   ],
   "connections": [
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
     [ "keypad1:R1", "esp:D13", "green", [ "v0" ] ],
     [ "keypad1:R3", "esp:D14", "green", [ "v0" ] ],
     [ "keypad1:R4", "esp:D27", "green", [ "v0" ] ],
