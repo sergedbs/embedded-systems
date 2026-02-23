@@ -6,11 +6,20 @@
  */
 
 #include "stdio_redirect.h"
+#include "config_pins.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
 #include "lcd_i2c.h"
 #include "keypad.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+#define LCD_COLS 20
+
+// Input mode settings
+static input_mode_t current_input_mode = INPUT_MODE_NORMAL;
+static bool centered_input = false;
 
 /**
  * @brief Initialize STDIO redirection
@@ -19,6 +28,22 @@ esp_err_t stdio_redirect_init(void)
 {
     // Nothing special needed for wrapper-based approach
     return ESP_OK;
+}
+
+/**
+ * @brief Set input mode for lcd_scanf
+ */
+void lcd_scanf_set_mode(input_mode_t mode)
+{
+    current_input_mode = mode;
+}
+
+/**
+ * @brief Enable/disable centered input display
+ */
+void lcd_scanf_set_centered(bool centered)
+{
+    centered_input = centered;
 }
 
 /**
@@ -37,14 +62,60 @@ int lcd_printf(const char *format, ...)
 }
 
 /**
+ * @brief Helper function to display input with masking and centering
+ */
+static void display_input(const char *buffer, size_t length, uint8_t row, uint8_t start_col)
+{
+    // Clear the display area
+    lcd_set_cursor(0, row);
+    for (uint8_t i = 0; i < LCD_COLS; i++) {
+        lcd_putc(' ');
+    }
+    
+    // Calculate centered position if needed
+    uint8_t col = start_col;
+    if (centered_input && length > 0) {
+        col = (LCD_COLS - length) / 2;
+    }
+    
+    // Display the input based on mode
+    lcd_set_cursor(col, row);
+    
+    if (current_input_mode == INPUT_MODE_NORMAL) {
+        // Display as-is
+        for (size_t i = 0; i < length; i++) {
+            lcd_putc(buffer[i]);
+        }
+    } else if (current_input_mode == INPUT_MODE_MASKED) {
+        // Display all as asterisks
+        for (size_t i = 0; i < length; i++) {
+            lcd_putc('*');
+        }
+    } else if (current_input_mode == INPUT_MODE_REVEAL_LAST) {
+        // Display all but last as asterisks, last as actual char
+        for (size_t i = 0; i < length; i++) {
+            if (i == length - 1) {
+                lcd_putc(buffer[i]);  // Show last character
+            } else {
+                lcd_putc('*');  // Mask previous characters
+            }
+        }
+    }
+}
+
+/**
  * @brief Scanf-like function that reads from keypad
  * 
- * Simplified version that reads a string until '#' is pressed.
+ * Supports masking, last-char reveal, and centered input.
  */
 int lcd_scanf(const char *format, ...)
 {
     char buffer[64];
     size_t idx = 0;
+    
+    // Get current cursor position
+    uint8_t start_row = 3;  // Assume we're on row 3 for input
+    uint8_t start_col = 0;
     
     // Read characters until enter ('#') is pressed
     while (idx < sizeof(buffer) - 1) {
@@ -53,20 +124,31 @@ int lcd_scanf(const char *format, ...)
         if (key == '#') {
             // Enter pressed - end input
             buffer[idx] = '\0';
-            lcd_putc('\n');  // Move to next line
+            
+            // If in REVEAL_LAST mode, mask the last character before exit
+            if (current_input_mode == INPUT_MODE_REVEAL_LAST && idx > 0) {
+                display_input(buffer, idx, start_row, start_col);
+            }
+            
             break;
         } else if (key == '*') {
             // Backspace - remove last character
             if (idx > 0) {
                 idx--;
-                lcd_putc('\b');
-                lcd_putc(' ');
-                lcd_putc('\b');
+                display_input(buffer, idx, start_row, start_col);
             }
         } else {
-            // Normal character
+            // Normal character - add to buffer
             buffer[idx++] = key;
-            lcd_putc(key);  // Echo to LCD
+            
+            // Display immediately
+            display_input(buffer, idx, start_row, start_col);
+            
+            // If in REVEAL_LAST mode, wait 500ms then mask the character
+            if (current_input_mode == INPUT_MODE_REVEAL_LAST && idx > 0) {
+                vTaskDelay(pdMS_TO_TICKS(CHAR_REVEAL_MS));
+                display_input(buffer, idx, start_row, start_col);
+            }
         }
     }
     
@@ -77,6 +159,10 @@ int lcd_scanf(const char *format, ...)
     va_start(args, format);
     int ret = vsscanf(buffer, format, args);
     va_end(args);
+    
+    // Reset modes to defaults
+    current_input_mode = INPUT_MODE_NORMAL;
+    centered_input = false;
     
     return ret;
 }

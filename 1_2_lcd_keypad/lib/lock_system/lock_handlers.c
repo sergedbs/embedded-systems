@@ -36,12 +36,16 @@ lock_state_t lock_handler_first_boot_setup(lock_state_context_t *ctx)
 
 lock_state_t lock_handler_setting_code(lock_state_context_t *ctx)
 {
-    // Prompt for new PIN
+    // Prompt for new PIN with centered UI
     lcd_clear();
-    lcd_printf("Set PIN\n");
-    lcd_printf("(%d-%d digits)\n", PIN_MIN_LENGTH, PIN_MAX_LENGTH);
-    lcd_printf("\n");
-    lcd_printf("> ");
+    lock_ui_display_centered("Set PIN", 0);
+    lock_ui_display_centered("(4-8 digits)", 1);
+    lcd_set_cursor(0, 3);
+    lcd_printf("Enter: ");
+    
+    // Enable last-char reveal mode and centering
+    lcd_scanf_set_mode(INPUT_MODE_REVEAL_LAST);
+    lcd_scanf_set_centered(true);
     
     // Read new PIN
     lcd_scanf("%8s", ctx->new_pin);
@@ -50,8 +54,7 @@ lock_state_t lock_handler_setting_code(lock_state_context_t *ctx)
     size_t pin_len = strlen(ctx->new_pin);
     if (pin_len < PIN_MIN_LENGTH || pin_len > PIN_MAX_LENGTH) {
         lock_ui_display_error("PIN must be", 0);
-        lcd_set_cursor(0, 3);
-        lcd_printf("   %d-%d digits", PIN_MIN_LENGTH, PIN_MAX_LENGTH);
+        lock_ui_display_centered("4-8 digits", 3);
         vTaskDelay(pdMS_TO_TICKS(2000));
         return STATE_SETTING_CODE;  // Retry
     }
@@ -81,12 +84,15 @@ lock_state_t lock_handler_confirming_code(lock_state_context_t *ctx)
 {
     char pin_input[PIN_MAX_LENGTH + 1];
     
-    // Prompt for PIN confirmation
+    // Prompt for PIN confirmation with centered UI
     lcd_clear();
-    lcd_printf("Confirm PIN\n");
-    lcd_printf("\n");
-    lcd_printf("\n");
-    lcd_printf("> ");
+    lock_ui_display_centered("Confirm PIN", 1);
+    lcd_set_cursor(0, 3);
+    lcd_printf("Enter: ");
+    
+    // Enable last-char reveal mode and centering
+    lcd_scanf_set_mode(INPUT_MODE_REVEAL_LAST);
+    lcd_scanf_set_centered(true);
     
     // Read confirmation
     lcd_scanf("%8s", pin_input);
@@ -104,7 +110,6 @@ lock_state_t lock_handler_confirming_code(lock_state_context_t *ctx)
             strcpy(ctx->current_pin, ctx->new_pin);
             
             lock_ui_display_success("PIN saved", 0);
-            lcd_set_cursor(0, 3);
             lock_ui_display_centered("\xE2\x9C\x93", 3);  // ✓
             vTaskDelay(pdMS_TO_TICKS(2000));
             
@@ -112,7 +117,6 @@ lock_state_t lock_handler_confirming_code(lock_state_context_t *ctx)
             return *ctx->return_state;
         } else {
             lock_ui_display_error("Failed to save", 0);
-            lcd_set_cursor(0, 3);
             lock_ui_display_centered("Try again...", 3);
             vTaskDelay(pdMS_TO_TICKS(2000));
             return STATE_SETTING_CODE;
@@ -121,7 +125,6 @@ lock_state_t lock_handler_confirming_code(lock_state_context_t *ctx)
         // Mismatch - retry
         ESP_LOGI(TAG, "PINs don't match - retry");
         lock_ui_display_error("PINs don't match", 0);
-        lcd_set_cursor(0, 3);
         lock_ui_display_centered("Try again...", 3);
         vTaskDelay(pdMS_TO_TICKS(2000));
         return STATE_SETTING_CODE;
@@ -132,13 +135,17 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
 {
     char pin_input[PIN_MAX_LENGTH + 1];
     
-    // LOCKED state: prompt for PIN
+    // LOCKED state: prompt for PIN with centered UI
     lock_ui_display_title("LOCKED");
     lcd_set_cursor(0, 3);
-    lcd_printf("Enter PIN: > ");
+    lcd_printf("Enter PIN: ");
     
     // Turn off all LEDs
     led_all_off();
+    
+    // Enable masked input (asterisks only) and centering
+    lcd_scanf_set_mode(INPUT_MODE_MASKED);
+    lcd_scanf_set_centered(true);
     
     // Read PIN from keypad
     lcd_scanf("%15s", pin_input);
@@ -235,12 +242,17 @@ lock_state_t lock_handler_changing_code(lock_state_context_t *ctx)
 {
     char pin_input[PIN_MAX_LENGTH + 1];
     
-    // Prompt for current PIN
+    // Prompt for current PIN with centered UI
     lcd_clear();
     lock_ui_display_centered("Change PIN", 0);
     lcd_printf("\n");
-    lcd_printf("Enter current PIN:\n");
-    lcd_printf("> ");
+    lock_ui_display_centered("Enter current PIN:", 2);
+    lcd_set_cursor(0, 3);
+    lcd_printf("Enter: ");
+    
+    // Enable masked input and centering
+    lcd_scanf_set_mode(INPUT_MODE_MASKED);
+    lcd_scanf_set_centered(true);
     
     // Read current PIN
     lcd_scanf("%8s", pin_input);

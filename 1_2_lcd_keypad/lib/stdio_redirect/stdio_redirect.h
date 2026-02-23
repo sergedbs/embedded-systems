@@ -20,6 +20,16 @@
 #define STDIO_REDIRECT_H
 
 #include "esp_err.h"
+#include <stdbool.h>
+
+/**
+ * @brief Input masking modes
+ */
+typedef enum {
+    INPUT_MODE_NORMAL,        // Display characters as-is
+    INPUT_MODE_MASKED,        // Display asterisks (*) for all input
+    INPUT_MODE_REVEAL_LAST    // Display last character briefly, then mask
+} input_mode_t;
 
 /**
  * @brief Initialize STDIO redirection
@@ -40,6 +50,20 @@ esp_err_t stdio_redirect_init(void);
  * @return Number of characters written
  */
 int lcd_printf(const char *format, ...);
+
+/**
+ * @brief Set input mode for lcd_scanf
+ * 
+ * @param mode Input mode (NORMAL, MASKED, or REVEAL_LAST)
+ */
+void lcd_scanf_set_mode(input_mode_t mode);
+
+/**
+ * @brief Enable/disable centered input display
+ * 
+ * @param centered true to center input, false for normal
+ */
+void lcd_scanf_set_centered(bool centered);
 
 /**
  * @brief Scanf-like function that reads from keypad

@@ -100,8 +100,14 @@ Lock/unlock security system on **ESP32-WROOM-32 DevKit V1** with:
 │   │   ├── stdio_redirect.h
 │   │   └── stdio_redirect.c
 │   └── lock_system/           # ⭐ Lock state machine & UI logic
-│       ├── lock_system.h
-│       └── lock_system.c
+│       ├── lock_system.h      # Public API & state enum
+│       ├── lock_system.c      # State machine coordinator
+│       ├── lock_storage.h     # NVS persistence API
+│       ├── lock_storage.c     # NVS operations
+│       ├── lock_ui.h          # UI helper functions
+│       ├── lock_ui.c          # Display formatting
+│       ├── lock_handlers.h    # State handler declarations
+│       └── lock_handlers.c    # State handler implementations
 ├── src/
 │   ├── CMakeLists.txt         # Source component registration
 │   └── main.c                 # ⭐ app_main() entry point
@@ -199,35 +205,52 @@ typedef enum {
 
 **API:**
 
-- `void stdio_redirect_init(void)` — Setup unbuffered stdin/stdout
+- `esp_err_t stdio_redirect_init(void)` — Initialize STDIO system
+- `int lcd_printf(const char *format, ...)` — Printf-style output to LCD
+- `int lcd_scanf(const char *format, ...)` — Scanf-style input from keypad
+- `void lcd_scanf_set_mode(input_mode_t mode)` — Set input masking mode
+- `void lcd_scanf_set_centered(bool centered)` — Enable/disable centered input
 
-**Syscall Implementations:**
+**Input Modes:**
 
-- `ssize_t _write(int fd, const void *buf, size_t count)`
-  - Forward each char to `lcd_putc()`
-  - Return `count`
-  
-- `ssize_t _read(int fd, void *buf, size_t count)`
-  - Block until user input (`#` pressed)
-  - Handle `*` as backspace: remove last char, update LCD visually
-  - Echo normal keys to LCD
-  - Translate `#` → `'\n'` in buffer
-  - Return bytes read
+- `INPUT_MODE_NORMAL` — Display characters as-is
+- `INPUT_MODE_MASKED` — Display all as asterisks (*)
+- `INPUT_MODE_REVEAL_LAST` — Show last character for 500ms, then mask
 
-**Notes:**
+**Features:**
 
-- Set `setvbuf(stdin, NULL, _IONBF, 0)` for immediate input
-- Set `setvbuf(stdout, NULL, _IONBF, 0)` for immediate output
-- Coordinate with `lock_system` for masked input mode
+- Printf-style formatting with vsnprintf
+- Backspace (`*`) removes last character with visual update
+- Enter (`#`) ends input
+- Dynamic centering of input as user types
+- Automatic mode reset after each scanf
 
 #### `lib/lock_system/` - Lock State Machine & UI
 
-**API:**
+**Modular Architecture:** (Single Responsibility Principle)
 
-- `esp_err_t lock_system_init(void)` — Load code from NVS, init state
+**lock_system.h/.c** - State Machine Coordinator
+
+- `esp_err_t lock_system_init(void)` — Initialize system, load PIN from NVS
 - `void lock_system_run(void)` — Main state machine loop
-- `void lock_system_set_masked_input(bool masked)` — Toggle asterisk mode
-- Helper: `void display_centered(const char *text, uint8_t row)` — Center text on LCD row
+
+**lock_storage.h/.c** - NVS Persistence
+
+- `esp_err_t lock_storage_init(void)` — Initialize NVS flash
+- `bool lock_storage_load_pin(char *pin_buf, size_t buf_size)` — Load PIN
+- `esp_err_t lock_storage_save_pin(const char *pin)` — Save PIN with validation
+
+**lock_ui.h/.c** - UI Helper Functions
+
+- `void lock_ui_display_centered(const char *text, uint8_t row)` — Center text
+- `void lock_ui_display_title(const char *title)` — Display bordered title
+- `void lock_ui_display_error(const char *message, uint32_t delay_ms)` — Format error
+- `void lock_ui_display_success(const char *message, uint32_t delay_ms)` — Format success
+
+**lock_handlers.h/.c** - State Handler Functions
+
+- One handler function per state (first_boot, locked, unlocked, menu, etc.)
+- Clean separation of business logic from state machine
 
 **States:**
 
@@ -628,39 +651,38 @@ RS = Register Select (0=command, 1=data)
 
 **Tasks:**
 
-- [ ] **6.1 Centered Text Helper**
-  - Implement `display_centered(const char *text, uint8_t row)` in `lock_system.c`
+- [x] **6.1 Centered Text Helper**
+  - Implemented `lock_ui_display_centered()` in `lock_ui.c`
   - Calculate: `col_start = (20 - strlen(text)) / 2`
   - Clear row, set cursor, print text
+  - Used throughout all state handlers
 
-- [ ] **6.2 Asterisk Masking for Unlock**
-  - Modify `_read()` in `stdio_redirect.c` to check masked mode flag
+- [x] **6.2 Asterisk Masking for Unlock**
+  - Implemented three input modes in `stdio_redirect.c`:
+    - `INPUT_MODE_NORMAL` - display as-is
+    - `INPUT_MODE_MASKED` - full asterisk masking (unlock)
+    - `INPUT_MODE_REVEAL_LAST` - show last char, then mask (PIN setup)
   - When masked: display `*` for each char, keep centered as input grows
-  - Example: `"***"` → `" *** "` → `"  ***  "` (always centered)
 
-- [ ] **6.3 Last-Char Reveal for New PIN Entry**
-  - When setting/changing code:
-    - Display actual char for 500ms
-    - Replace with `*` after timeout
-  - Use FreeRTOS timer or `vTaskDelay()` in separate task
+- [x] **6.3 Last-Char Reveal for New PIN Entry**
+  - `INPUT_MODE_REVEAL_LAST` implemented
+  - Display actual char for CHAR_REVEAL_MS (500ms)
+  - Replace with `*` after timeout using `vTaskDelay()`
+  - Applied to PIN setting and confirmation states
 
-- [ ] **6.4 Dynamic Centering During Input**
-  - As user types, recalculate center position
-  - Shift existing asterisks/chars, append new one
-  - Example progression:
-
-    ```txt
-    start (0 chars): cursor at col 10 (20/2)
-    "1" entered:        "         1          " (1 at center)
-    "12" entered:       "        12          " (shift left)
-    "123" entered:      "       123          " (shift left)
-    ```
+- [x] **6.4 Dynamic Centering During Input**
+  - `display_input()` helper function recalculates center on each keystroke
+  - Clears entire row, repositions centered content
+  - Handles backspace with proper re-centering
+  - Smooth visual feedback as user types
 
 **Verification:**
 
-- Unlock screen shows centered asterisks as typing
-- Setting new code shows last char briefly
-- Backspace properly updates centered display
+- [x] Unlock screen shows centered asterisks as typing
+- [x] Setting new code shows last char briefly (500ms)
+- [x] Backspace properly updates centered display
+- [x] All handlers use centered text helpers
+- [x] Tested in Wokwi simulator - all features working
 
 ---
 
@@ -848,9 +870,9 @@ RS = Register Select (0=command, 1=data)
 
 ## 🚀 CURRENT STATUS
 
-**Iteration:** Iteration 5 (Menu & Code Change) - COMPLETE ✅
-**Completed Tasks:** 26/40+
-**Progress:**
+**Iteration:** Iteration 6 (UI Enhancements) - COMPLETE ✅
+**Completed Tasks:** 34+/40+
+**Progress:** ~85-90% Complete
 
 - ✅ Iteration 1: COMPLETE - All hardware drivers working
   - LCD i2c, Keypad, LED, Buzzer modules fully functional
@@ -883,18 +905,39 @@ RS = Register Select (0=command, 1=data)
   - Full user flow: Unlock → Menu → Change PIN → Validate Old → Set New → Confirm → Back to Menu
   - All validation rules enforced throughout
   
-- ⏳ Iteration 6-7: Not started
-  - UI enhancements (centering, masking, last-char reveal)
-  - Auto-lock timer (30 seconds)
-  - Polish and optimization
+- ✅ **REFACTORING: Single Responsibility Principle Applied**
+  - Split `lock_system` into 4 focused modules:
+    - `lock_system.c` (93 lines) - State machine coordinator only
+    - `lock_storage.c` (114 lines) - NVS operations only
+    - `lock_ui.c` (89 lines) - UI/display helpers only
+    - `lock_handlers.c` (287 lines) - State handlers only
+  - Each module has clear, single responsibility
+  - Improved maintainability, testability, reusability
+  
+- ✅ Iteration 6: COMPLETE - UI Enhancements
+  - **Centered text:** All titles and messages use `lock_ui_display_centered()`
+  - **Input masking modes:**
+    - `INPUT_MODE_MASKED` - Full asterisks for unlock screen
+    - `INPUT_MODE_REVEAL_LAST` - Last char reveal (500ms) for PIN setup
+    - `INPUT_MODE_NORMAL` - Plain text display
+  - **Dynamic centering:** Input stays centered as user types
+  - **Smart backspace:** Properly updates centered masked input
+  - All handlers updated to use new UI features
+  - Tested and verified in Wokwi simulator
+  
+- ⏳ Iteration 7: Not started (~4-5 tasks remaining)
+  - Auto-lock timer (30 seconds of inactivity)
+  - Enhanced input validation (reject A,B,C,D during PIN entry)
+  - UX polish (progress indicators, smooth transitions)
+  - Code optimization (review delays, minimize LCD refreshes)
 
 **Next Steps:**
 
-1. ✅ Test Iteration 5 in Wokwi simulator
-2. Begin Iteration 6: UI enhancements
-3. Implement centered text helper function
-4. Add asterisk masking for PIN entry
-5. Implement last-char reveal (500ms)
+1. Begin Iteration 7: Auto-lock timer and final polish
+2. Implement FreeRTOS timer for 30-second auto-lock
+3. Add input character filtering (0-9 only for PINs)
+4. Final optimization and code review
+5. Complete lab report documentation
 
 ---
 
