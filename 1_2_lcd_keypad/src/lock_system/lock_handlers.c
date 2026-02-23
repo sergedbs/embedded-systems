@@ -57,16 +57,16 @@ lock_state_t lock_handler_setting_code(lock_state_context_t *ctx)
     }
     
     lcd_set_cursor(0, 1);
-    lcd_printf("Pin: ");
+    printf("Pin: ");
 
     // Configure: reveal last char + digits only
-    lcd_scanf_configure(INPUT_MODE_REVEAL_LAST, true);
+    set_input_mode(INPUT_MODE_REVEAL_LAST, true);
 
     // Read new PIN
-    int result = lcd_scanf("%8s", ctx->new_pin);
+    scanf("%8s", ctx->new_pin);
     
     // Check for cancel
-    if (result == -1) {
+    if (stdin_was_cancelled()) {
         if (*ctx->return_state == STATE_MENU) {
             ESP_LOGI(TAG, "PIN entry cancelled");
             lcd_clear();
@@ -118,16 +118,16 @@ lock_state_t lock_handler_confirming_code(lock_state_context_t *ctx)
     lcd_clear();
     lock_ui_display_centered("Confirm PIN", 0);
     lcd_set_cursor(0, 1);
-    lcd_printf("Pin: ");
+    printf("Pin: ");
 
     // Configure: reveal last char + digits only
-    lcd_scanf_configure(INPUT_MODE_REVEAL_LAST, true);
+    set_input_mode(INPUT_MODE_REVEAL_LAST, true);
 
     // Read confirmation
-    int result = lcd_scanf("%8s", pin_input);
+    scanf("%8s", pin_input);
 
     // Check for cancel
-    if (result == -1) {
+    if (stdin_was_cancelled()) {
         ESP_LOGI(TAG, "PIN confirmation cancelled");
         lcd_clear();
         lock_ui_display_centered("Cancelled", 0);
@@ -189,16 +189,16 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
         lock_ui_display_title("LOCKED");
         lcd_clear_row(1);
         lcd_set_cursor(0, 1);
-        lcd_printf("PIN: ");
+        printf("PIN: ");
 
         // Configure: masked input + digits only
-        lcd_scanf_configure(INPUT_MODE_MASKED, true);
+        set_input_mode(INPUT_MODE_MASKED, true);
 
         // Read PIN from keypad
-        int result = lcd_scanf("%15s", pin_input);
+        scanf("%15s", pin_input);
         
         // 'C' pressed: clear current input and re-prompt silently
-        if (result == -1) {
+        if (stdin_was_cancelled()) {
             ESP_LOGI(TAG, "PIN input cleared");
             continue;
         }
@@ -258,7 +258,7 @@ lock_state_t lock_handler_menu(lock_state_context_t *ctx)
     lock_ui_display_title("MENU");
     lcd_clear_row(1);
     lcd_set_cursor(0, 1);
-    lcd_printf("A:Chg  D:Lock");
+    printf("A:Chg  D:Lock");
 
     // Green LED stays on
     led_set(LED_GREEN, true);
@@ -316,16 +316,16 @@ lock_state_t lock_handler_changing_code(lock_state_context_t *ctx)
     lcd_clear();
     lock_ui_display_centered("Chg PIN (C=X)", 0);
     lcd_set_cursor(0, 1);
-    lcd_printf("Old: ");
+    printf("Old: ");
 
     // Configure: masked input + digits only
-    lcd_scanf_configure(INPUT_MODE_MASKED, true);
+    set_input_mode(INPUT_MODE_MASKED, true);
 
     // Read current PIN
-    int result = lcd_scanf("%8s", pin_input);
+    scanf("%8s", pin_input);
     
     // Check for cancel
-    if (result == -1) {
+    if (stdin_was_cancelled()) {
         ESP_LOGI(TAG, "PIN change cancelled");
         lcd_clear();
         lock_ui_display_centered("Cancelled", 0);
@@ -394,7 +394,7 @@ lock_state_t lock_handler_lockout(lock_state_context_t *ctx)
     for (int remaining = lockout_duration; remaining >= 0; remaining--) {
         // Only update countdown on row 1 (don't redraw title)
         lcd_set_cursor(0, 1);
-        lcd_printf("Wait %2ds...    ", remaining);
+        printf("Wait %2ds...    ", remaining);
         
         if (remaining > 0) {
             vTaskDelay(pdMS_TO_TICKS(1000));

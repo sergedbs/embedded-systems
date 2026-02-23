@@ -54,5 +54,6 @@
 #define BUZZER_ERROR_BEEP_MS        100
 #define BUZZER_ERROR_PAUSE_MS       50
 #define BUZZER_ERROR_REPEAT         3
+#define BUZZER_REJECT_MS            30      // Short beep for rejected key (digits-only filter)
 
 #endif // CONFIG_PINS_H

@@ -209,7 +209,7 @@ esp_err_t lock_system_init(void)
 
     // Register keypress callback so the input layer can reset the backlight
     // timer without depending on lock_system directly
-    lcd_scanf_set_keypress_cb(lock_system_reset_backlight_timer);
+    set_keypress_cb(lock_system_reset_backlight_timer);
 
     return ESP_OK;
 }

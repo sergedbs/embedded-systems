@@ -1,17 +1,17 @@
 /**
  * @file stdio_redirect.h
- * @brief STDIO-like wrapper functions for LCD/Keypad
- * 
- * Provides printf/scanf-like functions that work with LCD and Keypad:
- * - lcd_printf() → outputs to LCD display
- * - lcd_scanf() → reads input from keypad
- * 
- * Features:
- * - Printf-style formatting
- * - Backspace handling ('*' key removes last character)
- * - Enter/Confirm ('#' key ends input)
- * - Echo characters to LCD during input
- * 
+ * @brief VFS-based STDIO redirection: stdout → LCD, stdin → GPIO keypad.
+ *
+ * After stdio_redirect_init(), bare printf() prints to the LCD and bare
+ * scanf() reads from the keypad.  ESP_LOGI/ESP_LOGE continue writing to
+ * UART via esp_log_set_vprintf().
+ *
+ * Typical usage per input operation:
+ *   set_input_mode(INPUT_MODE_MASKED, true);
+ *   printf("PIN: ");
+ *   int n = scanf("%8s", buf);
+ *   if (stdin_was_cancelled()) { ... }
+ *
  * @author ESP32 Lock System
  * @date 2026
  */
@@ -21,66 +21,56 @@
 
 #include "esp_err.h"
 #include <stdbool.h>
+#include <stdio.h>
 
 /**
- * @brief Input masking modes
+ * @brief Input masking modes for stdin (keypad) reads.
  */
 typedef enum {
-    INPUT_MODE_NORMAL,        // Display characters as-is
-    INPUT_MODE_MASKED,        // Display asterisks (*) for all input
-    INPUT_MODE_REVEAL_LAST    // Display last character briefly, then mask
+    INPUT_MODE_NORMAL,       ///< Display characters as typed
+    INPUT_MODE_MASKED,       ///< Display asterisks for all input
+    INPUT_MODE_REVEAL_LAST   ///< Show last char briefly, then mask it
 } input_mode_t;
 
 /**
- * @brief Initialize STDIO redirection
- * 
+ * @brief Register VFS drivers and redirect stdout → LCD, stdin → keypad.
+ *
  * Must be called after lcd_init() and keypad_init().
- * 
- * @return ESP_OK on success
+ * ESP log output is preserved on UART.
+ *
+ * @return ESP_OK on success, ESP_FAIL on VFS/timer error.
  */
 esp_err_t stdio_redirect_init(void);
 
 /**
- * @brief Printf-like function that outputs to LCD
- * 
- * Formats and displays text on the LCD using printf-style formatting.
- * 
- * @param format Printf-style format string
- * @param ... Variable arguments
- * @return Number of characters written
+ * @brief Configure the input mode and digit-only filter for the next read.
+ *
+ * Also clears any previous EOF/cancel state on stdin, so this must be
+ * called once before each scanf() that follows a cancel.
+ *
+ * @param mode        Masking behaviour.
+ * @param digits_only If true, non-digit keys (except '#' and '*') are ignored.
  */
-int lcd_printf(const char *format, ...);
+void set_input_mode(input_mode_t mode, bool digits_only);
 
 /**
- * @brief Register a callback invoked on every keypress
+ * @brief Register a callback invoked on every keypress during stdin reads.
  *
- * Used by higher layers (e.g. lock_system) to reset timers without creating
- * an upward dependency from this module.
+ * Typically used to reset activity timers without coupling the input
+ * layer to the application layer.
  *
- * @param cb Callback function, or NULL to unregister
+ * @param cb Callback function pointer, or NULL to clear.
  */
-void lcd_scanf_set_keypress_cb(void (*cb)(void));
+void set_keypress_cb(void (*cb)(void));
 
 /**
- * @brief Configure input mode and digit filter for the next lcd_scanf call
+ * @brief Returns true if the last stdin read was cancelled by the 'C' key.
  *
- * @param mode        Input masking mode
- * @param digits_only true to accept only 0–9, false to accept all keys
+ * Valid after a scanf() that returned EOF (-1).
+ * Automatically cleared by the next call to set_input_mode().
+ *
+ * @return true if cancelled, false otherwise.
  */
-void lcd_scanf_configure(input_mode_t mode, bool digits_only);
-
-/**
- * @brief Scanf-like function that reads from keypad
- * 
- * Reads input from keypad until '#' is pressed. Supports:
- * - Normal keys: Echo to LCD, add to buffer
- * - '*' (backspace): Remove last character
- * - '#' (enter): End input
- * 
- * @param format Scanf-style format string (typically "%s" for strings)
- * @param ... Variable arguments (pointers to store results)
- * @return Number of successfully parsed items
- */
-int lcd_scanf(const char *format, ...);
+bool stdin_was_cancelled(void);
 
 #endif // STDIO_REDIRECT_H
