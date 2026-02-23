@@ -13,6 +13,7 @@
 #include "buzzer.h"
 #include "stdio_redirect.h"
 #include "config_pins.h"
+#include "config_app.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -232,7 +233,7 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
             ESP_LOGI(TAG, "Wrong PIN - attempt %d/3", *ctx->failed_attempts);
             
             // Check if lockout threshold reached
-            if (*ctx->failed_attempts >= 3) {
+            if (*ctx->failed_attempts >= MAX_FAILED_ATTEMPTS) {
                 ESP_LOGW(TAG, "Too many failed attempts - entering lockout");
                 return STATE_LOCKOUT;
             }
@@ -407,8 +408,8 @@ lock_state_t lock_handler_lockout(lock_state_context_t *ctx)
     // Display title once (no flicker)
     lock_ui_display_title("LOCKED OUT");
     
-    // Display countdown (30 seconds) - only update row 1
-    const int lockout_duration = 30;
+    // Display countdown (LOCKOUT_DURATION_SEC seconds) - only update row 1
+    const int lockout_duration = LOCKOUT_DURATION_SEC;
     for (int remaining = lockout_duration; remaining >= 0; remaining--) {
         // Only update countdown on row 1 (don't redraw title)
         lcd_set_cursor(0, 1);

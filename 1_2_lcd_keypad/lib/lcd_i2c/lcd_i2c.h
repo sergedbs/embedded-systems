@@ -28,13 +28,12 @@ void lcd_clear(void);
 void lcd_set_cursor(uint8_t col, uint8_t row);
 
 /**
- * @brief Write a single character to LCD
- * 
- * Handles special characters:
- * - '\n' moves to next line
- * - '\r' returns to start of current line
- * - Automatically wraps at end of line
- * 
+ * @brief Write a single character to the current cursor position
+ *
+ * Handles '\n' (next row), '\r' (start of current row), '\b' (back one col).
+ * Writing at column 15 stops at column 15 — no auto-wrap (HD44780 16x2 DDRAM
+ * rows are non-contiguous: row 0 ends at 0x0F, row 1 starts at 0x40).
+ *
  * @param c Character to write
  */
 void lcd_putc(char c);
@@ -52,11 +51,6 @@ void lcd_print(const char *str);
  * @param on true to turn backlight on, false to turn off
  */
 void lcd_backlight(bool on);
-
-/**
- * @brief Move cursor to home position (0,0)
- */
-void lcd_home(void);
 
 /**
  * @brief Clear a specific row on the LCD

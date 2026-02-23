@@ -7,6 +7,7 @@
 
 #include "stdio_redirect.h"
 #include "config_pins.h"
+#include "config_app.h"
 #include "lock_system.h"
 #include <stdio.h>
 #include <string.h>

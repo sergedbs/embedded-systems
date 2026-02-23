@@ -5,6 +5,7 @@
 
 #include "lock_storage.h"
 #include "config_pins.h"
+#include "config_app.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "nvs.h"

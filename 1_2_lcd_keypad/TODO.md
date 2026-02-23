@@ -1,6 +1,6 @@
 # ESP32 Security Lock System - Lab 1.2
 
-## LCD2004 i2c + Keypad 4×4 + LEDs + Buzzer + STDIO Retargeting
+## LCD1602 i2c + Keypad 4×4 + LEDs + Buzzer + STDIO Retargeting
 
 ---
 
@@ -22,7 +22,7 @@ Lock/unlock security system on **ESP32-WROOM-32 DevKit V1** with:
 ### Hardware Components
 
 - ESP32 DevKit V1 (ESP-WROOM-32)
-- LCD2004 i2c (20×4 characters, PCF8574 backpack)
+- LCD2004 i2c (16×2 characters, PCF8574 backpack)
 - Keypad 4×4 matrix
 - Green & Red LEDs (220Ω resistors)
 - Piezo buzzer

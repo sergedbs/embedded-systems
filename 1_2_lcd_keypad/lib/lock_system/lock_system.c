@@ -7,6 +7,7 @@
 #include "lock_storage.h"
 #include "lock_handlers.h"
 #include "config_pins.h"
+#include "config_app.h"
 #include "lcd_i2c.h"
 #include "led.h"
 #include "lock_ui.h"
@@ -131,7 +132,7 @@ void lock_system_start_backlight_timer(void)
         // Create timer on first use (60 seconds)
         backlight_timer = xTimerCreate(
             "backlight",
-            pdMS_TO_TICKS(60 * 1000),  // 60 seconds
+            pdMS_TO_TICKS(BACKLIGHT_TIMEOUT_SEC * 1000),
             pdFALSE,  // One-shot timer
             NULL,
             backlight_timer_callback

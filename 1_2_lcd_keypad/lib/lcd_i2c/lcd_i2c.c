@@ -199,14 +199,6 @@ void lcd_clear(void)
     current_row = 0;
 }
 
-void lcd_home(void)
-{
-    lcd_command(LCD_CMD_HOME);
-    vTaskDelay(pdMS_TO_TICKS(2));
-    current_col = 0;
-    current_row = 0;
-}
-
 void lcd_set_cursor(uint8_t col, uint8_t row)
 {
     if (row >= LCD_ROWS) row = LCD_ROWS - 1;
