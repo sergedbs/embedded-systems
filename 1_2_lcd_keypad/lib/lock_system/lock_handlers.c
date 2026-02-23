@@ -6,6 +6,7 @@
 #include "lock_handlers.h"
 #include "lock_storage.h"
 #include "lock_ui.h"
+#include "lock_system.h"
 #include "lcd_i2c.h"
 #include "keypad.h"
 #include "led.h"
@@ -43,9 +44,10 @@ lock_state_t lock_handler_setting_code(lock_state_context_t *ctx)
     lcd_set_cursor(0, 3);
     lcd_printf("Enter: ");
     
-    // Enable last-char reveal mode and centering
+    // Enable last-char reveal mode, centering, and digits-only filter
     lcd_scanf_set_mode(INPUT_MODE_REVEAL_LAST);
     lcd_scanf_set_centered(true);
+    lcd_scanf_set_digits_only(true);
     
     // Read new PIN
     lcd_scanf("%8s", ctx->new_pin);
@@ -90,9 +92,10 @@ lock_state_t lock_handler_confirming_code(lock_state_context_t *ctx)
     lcd_set_cursor(0, 3);
     lcd_printf("Enter: ");
     
-    // Enable last-char reveal mode and centering
+    // Enable last-char reveal mode, centering, and digits-only filter
     lcd_scanf_set_mode(INPUT_MODE_REVEAL_LAST);
     lcd_scanf_set_centered(true);
+    lcd_scanf_set_digits_only(true);
     
     // Read confirmation
     lcd_scanf("%8s", pin_input);
@@ -112,6 +115,11 @@ lock_state_t lock_handler_confirming_code(lock_state_context_t *ctx)
             lock_ui_display_success("PIN saved", 0);
             lock_ui_display_centered("\xE2\x9C\x93", 3);  // ✓
             vTaskDelay(pdMS_TO_TICKS(2000));
+            
+            // Restart auto-lock if returning to menu
+            if (*ctx->return_state == STATE_MENU) {
+                lock_system_start_autolock();
+            }
             
             // Return to appropriate state (LOCKED for first setup, MENU for change)
             return *ctx->return_state;
@@ -143,9 +151,10 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
     // Turn off all LEDs
     led_all_off();
     
-    // Enable masked input (asterisks only) and centering
+    // Enable masked input (asterisks only), centering, and digits-only filter
     lcd_scanf_set_mode(INPUT_MODE_MASKED);
     lcd_scanf_set_centered(true);
+    lcd_scanf_set_digits_only(true);
     
     // Read PIN from keypad
     lcd_scanf("%15s", pin_input);
@@ -197,6 +206,9 @@ lock_state_t lock_handler_unlocked(lock_state_context_t *ctx)
     
     vTaskDelay(pdMS_TO_TICKS(1500));
     
+    // Start auto-lock timer when entering menu
+    lock_system_start_autolock();
+    
     return STATE_MENU;
 }
 
@@ -216,9 +228,13 @@ lock_state_t lock_handler_menu(lock_state_context_t *ctx)
     while (1) {
         key = keypad_getkey_blocking();
         
+        // Reset auto-lock timer on any keypress
+        lock_system_reset_autolock();
+        
         if (key == '1') {
             // Lock system
             ESP_LOGI(TAG, "User selected: Lock");
+            lock_system_stop_autolock();
             lock_ui_display_centered("Locking...", 3);
             buzzer_beep(100);
             vTaskDelay(pdMS_TO_TICKS(500));
@@ -228,6 +244,7 @@ lock_state_t lock_handler_menu(lock_state_context_t *ctx)
         } else if (key == '2') {
             // Change PIN
             ESP_LOGI(TAG, "User selected: Change PIN");
+            lock_system_stop_autolock();
             buzzer_beep(100);
             return STATE_CHANGING_CODE;
             
@@ -250,9 +267,10 @@ lock_state_t lock_handler_changing_code(lock_state_context_t *ctx)
     lcd_set_cursor(0, 3);
     lcd_printf("Enter: ");
     
-    // Enable masked input and centering
+    // Enable masked input, centering, and digits-only filter
     lcd_scanf_set_mode(INPUT_MODE_MASKED);
     lcd_scanf_set_centered(true);
+    lcd_scanf_set_digits_only(true);
     
     // Read current PIN
     lcd_scanf("%8s", pin_input);
@@ -264,8 +282,9 @@ lock_state_t lock_handler_changing_code(lock_state_context_t *ctx)
         // Correct - proceed to setting new PIN
         ESP_LOGI(TAG, "Current PIN correct - allow change");
         
+        lcd_clear();
         lock_ui_display_centered("Verified!", 1);
-        lock_ui_display_centered("Setting new PIN...", 2);
+        lock_ui_display_centered("\xE2\x9C\x93", 2);  // ✓
         
         buzzer_success();
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -282,6 +301,9 @@ lock_state_t lock_handler_changing_code(lock_state_context_t *ctx)
         lock_ui_display_centered("Try again...", 3);
         vTaskDelay(pdMS_TO_TICKS(2000));
         led_all_off();
+        
+        // Restart auto-lock when returning to menu
+        lock_system_start_autolock();
         
         return STATE_MENU;
     }

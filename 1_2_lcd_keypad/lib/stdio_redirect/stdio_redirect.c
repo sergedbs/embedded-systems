@@ -12,6 +12,7 @@
 #include <stdarg.h>
 #include "lcd_i2c.h"
 #include "keypad.h"
+#include "buzzer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -20,6 +21,7 @@
 // Input mode settings
 static input_mode_t current_input_mode = INPUT_MODE_NORMAL;
 static bool centered_input = false;
+static bool digits_only_filter = false;
 
 /**
  * @brief Initialize STDIO redirection
@@ -44,6 +46,14 @@ void lcd_scanf_set_mode(input_mode_t mode)
 void lcd_scanf_set_centered(bool centered)
 {
     centered_input = centered;
+}
+
+/**
+ * @brief Set digits-only filter for PIN entry
+ */
+void lcd_scanf_set_digits_only(bool digits_only)
+{
+    digits_only_filter = digits_only;
 }
 
 /**
@@ -121,6 +131,16 @@ int lcd_scanf(const char *format, ...)
     while (idx < sizeof(buffer) - 1) {
         char key = keypad_getkey_blocking();
         
+        // Filter out invalid characters if digits-only mode is enabled
+        if (digits_only_filter) {
+            // Only allow 0-9, *, and # (backspace and enter)
+            if (key != '*' && key != '#' && (key < '0' || key > '9')) {
+                // Invalid character - short error beep
+                buzzer_beep(30);
+                continue;  // Skip this character
+            }
+        }
+        
         if (key == '#') {
             // Enter pressed - end input
             buffer[idx] = '\0';
@@ -163,6 +183,7 @@ int lcd_scanf(const char *format, ...)
     // Reset modes to defaults
     current_input_mode = INPUT_MODE_NORMAL;
     centered_input = false;
+    digits_only_filter = false;
     
     return ret;
 }

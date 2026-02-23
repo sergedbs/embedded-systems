@@ -37,4 +37,25 @@ esp_err_t lock_system_init(void);
  */
 void lock_system_run(void);
 
+/**
+ * @brief Start auto-lock timer (30 seconds)
+ * 
+ * Call when entering UNLOCKED/MENU states
+ */
+void lock_system_start_autolock(void);
+
+/**
+ * @brief Reset auto-lock timer
+ * 
+ * Call on any user activity (keypress)
+ */
+void lock_system_reset_autolock(void);
+
+/**
+ * @brief Stop auto-lock timer
+ * 
+ * Call when leaving UNLOCKED/MENU states
+ */
+void lock_system_stop_autolock(void);
+
 #endif // LOCK_SYSTEM_H

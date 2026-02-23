@@ -66,6 +66,13 @@ void lcd_scanf_set_mode(input_mode_t mode);
 void lcd_scanf_set_centered(bool centered);
 
 /**
+ * @brief Set character filter for input (e.g., digits only)
+ * 
+ * @param digits_only true to accept only 0-9, false to accept all
+ */
+void lcd_scanf_set_digits_only(bool digits_only);
+
+/**
  * @brief Scanf-like function that reads from keypad
  * 
  * Reads input from keypad until '#' is pressed. Supports:
