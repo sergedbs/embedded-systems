@@ -511,22 +511,22 @@ RS = Register Select (0=command, 1=data)
 
 **Tasks:**
 
-- [ ] **3.1 Simple state machine in `src/main.c`**
+- [x] **3.1 Simple state machine in `src/main.c`**
   - States: LOCKED, UNLOCKED
   - LOCKED: prompt "Enter PIN:", read 4 chars, validate
   - Match: green LED, `printf("✓ Unlocked\n")`, buzzer success → UNLOCKED
   - Mismatch: red LED, `printf("✗ Wrong PIN\n")`, buzzer error → stay LOCKED
   - UNLOCKED: show "Press # to lock", wait for `#` → LOCKED
 
-- [ ] **3.2 LED and buzzer feedback**
+- [x] **3.2 LED and buzzer feedback**
   - Success: green ON, red OFF, 100ms beep
   - Failure: red ON, green OFF, triple beep pattern
 
 **Verification:**
 
-- Enter "1234" → unlocks with green LED
-- Enter wrong PIN → red LED, error beep
-- Press '#' when unlocked → locks again
+- [x] Enter "1234" → unlocks with green LED
+- [x] Enter wrong PIN → red LED, error beep
+- [x] Press '#' when unlocked → locks again
 
 ---
 
@@ -834,22 +834,23 @@ RS = Register Select (0=command, 1=data)
 
 ## 🚀 CURRENT STATUS
 
-**Iteration:** Iteration 2 (STDIO Retargeting) - COMPLETE ✅
-**Completed Tasks:** 9/40+
+**Iteration:** Iteration 3 (Simple Lock/Unlock) - COMPLETE ✅
+**Completed Tasks:** 13/40+
 **Progress:**
 
 - ✅ Iteration 1: COMPLETE - All hardware drivers working
-- ✅ Iteration 2: COMPLETE - STDIO redirect implemented and integrated
-  - printf() redirects to LCD
-  - scanf() reads from keypad
-  - Backspace (*) and Enter (#) working
-- ⏳ Iteration 3-7: Not started
+- ✅ Iteration 2: COMPLETE - STDIO redirect (lcd_printf/lcd_scanf) implemented
+- ✅ Iteration 3: COMPLETE - Lock/unlock with hardcoded PIN "1234"
+  - State machine with LOCKED/UNLOCKED states
+  - PIN validation with visual/audio feedback
+  - LED indicators (green=unlocked, red=error)
+- ⏳ Iteration 4-7: Not started
 
 **Next Steps:**
 
-1. Test Iteration 2 in Wokwi simulator
-2. Begin Iteration 3: Simple lock/unlock with hardcoded PIN "1234"
-3. Implement basic LOCKED/UNLOCKED state machine
+1. Test Iteration 3 in Wokwi simulator
+2. Begin Iteration 4: NVS storage and first-boot setup wizard
+3. Implement PIN persistence across reboots
 **Next Steps:** Begin Iteration 1 → Create `config_pins.h` and LCD driver
 23
 

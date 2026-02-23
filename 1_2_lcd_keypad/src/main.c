@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
@@ -15,9 +16,18 @@
 
 static const char *TAG = "MAIN";
 
+// Hardcoded PIN for Iteration 3
+#define HARDCODED_PIN "1234"
+
+// Lock states
+typedef enum {
+    STATE_LOCKED,
+    STATE_UNLOCKED
+} lock_state_t;
+
 void app_main(void)
 {
-    ESP_LOGI(TAG, "=== ESP32 Lock System - Iteration 2 Test ===");
+    ESP_LOGI(TAG, "=== ESP32 Lock System - Iteration 3 ===");
     ESP_LOGI(TAG, "Initializing peripherals...");
     
     // Initialize all peripherals
@@ -62,59 +72,106 @@ void app_main(void)
     
     // Display welcome message on LCD
     lcd_clear();
-    lcd_printf("  ESP32 Lock System\n");
-    lcd_printf("    Iteration 2\n");
-    lcd_printf("  STDIO Redirect\n");
-    lcd_printf("Press any key...");
+    lcd_printf("=== LOCK SYSTEM ===\n");
+    lcd_printf("  Iteration 3\n");
+    lcd_printf(" Simple Lock/Unlock\n");
+    lcd_printf("  Starting...");
     
-    // Success beep and LED blink
+    // Success beep
     vTaskDelay(pdMS_TO_TICKS(500));
     buzzer_success();
+    vTaskDelay(pdMS_TO_TICKS(1500));
     
-    for (int i = 0; i < 2; i++) {
-        led_set(LED_GREEN, true);
-        vTaskDelay(pdMS_TO_TICKS(200));
-        led_set(LED_GREEN, false);
-        vTaskDelay(pdMS_TO_TICKS(200));
-    }
+    // Lock/Unlock State Machine
+    ESP_LOGI(TAG, "Starting lock/unlock state machine...");
     
-    vTaskDelay(pdMS_TO_TICKS(2000));
-    
-    // STDIO Redirection Test Loop
-    ESP_LOGI(TAG, "Starting STDIO redirection test...");
+    lock_state_t state = STATE_LOCKED;
+    char pin_input[16];
     
     while (1) {
-        char input[16];
-        
-        lcd_clear();
-        lcd_printf("Type something:\n");
-        lcd_printf("(* = backspace)\n");
-        lcd_printf("(# = enter)\n");
-        lcd_printf("> ");
-        
-        // Read user input via keypad using lcd_scanf
-        lcd_scanf("%15s", input);
-        
-        ESP_LOGI(TAG, "User entered: '%s'", input);
-        
-        // Display what user typed
-        lcd_clear();
-        lcd_printf("You typed:\n");
-        lcd_printf("%s\n", input);
-        lcd_printf("\n");
-        lcd_printf("Press # to continue");
-        
-        // Feedback: success beep and green LED
-        led_set(LED_GREEN, true);
-        buzzer_success();
-        vTaskDelay(pdMS_TO_TICKS(100));
-        led_set(LED_GREEN, false);
-        
-        // Wait for user to press # to continue
-        while (keypad_getkey_blocking() != '#') {
-            // Wait for # key
+        switch (state) {
+            case STATE_LOCKED:
+                // LOCKED state: prompt for PIN
+                lcd_clear();
+                lcd_printf("=== LOCKED ===\n");
+                lcd_printf("\n");
+                lcd_printf("Enter PIN:\n");
+                lcd_printf("> ");
+                
+                // Turn off all LEDs
+                led_all_off();
+                
+                // Read PIN from keypad
+                lcd_scanf("%15s", pin_input);
+                
+                ESP_LOGI(TAG, "PIN entered: '%s'", pin_input);
+                
+                // Validate PIN
+                if (strcmp(pin_input, HARDCODED_PIN) == 0) {
+                    // Correct PIN - unlock
+                    ESP_LOGI(TAG, "Correct PIN - unlocking");
+                    
+                    lcd_clear();
+                    lcd_printf("=== UNLOCKED ===\n");
+                    lcd_printf("\n");
+                    lcd_printf("  Access Granted!\n");
+                    lcd_printf("      \xE2\x9C\x93");  // ✓ checkmark
+                    
+                    // Success feedback
+                    led_success();  // Green LED on
+                    buzzer_success();
+                    
+                    vTaskDelay(pdMS_TO_TICKS(1500));
+                    led_all_off();
+                    
+                    // Transition to UNLOCKED state
+                    state = STATE_UNLOCKED;
+                    
+                } else {
+                    // Wrong PIN - stay locked
+                    ESP_LOGI(TAG, "Wrong PIN - staying locked");
+                    
+                    lcd_clear();
+                    lcd_printf("=== LOCKED ===\n");
+                    lcd_printf("\n");
+                    lcd_printf("  Access Denied!\n");
+                    lcd_printf("      \xE2\x9C\x97");  // ✗ X mark
+                    
+                    // Error feedback
+                    led_error();  // Red LED on
+                    buzzer_error();
+                    
+                    vTaskDelay(pdMS_TO_TICKS(1500));
+                    led_all_off();
+                    
+                    // Stay in LOCKED state
+                }
+                break;
+                
+            case STATE_UNLOCKED:
+                // UNLOCKED state: wait for # to lock
+                lcd_clear();
+                lcd_printf("=== UNLOCKED ===\n");
+                lcd_printf("\n");
+                lcd_printf("Press # to lock\n");
+                
+                // Green LED indicates unlocked
+                led_set(LED_GREEN, true);
+                
+                ESP_LOGI(TAG, "Waiting for # to lock...");
+                
+                // Wait for # key
+                while (keypad_getkey_blocking() != '#') {
+                    // Wait for lock command
+                }
+                
+                ESP_LOGI(TAG, "Locking...");
+                buzzer_beep(100);
+                led_all_off();
+                
+                // Transition to LOCKED state
+                state = STATE_LOCKED;
+                break;
         }
-        
-        buzzer_beep(50);
     }
 }
