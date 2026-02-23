@@ -17,10 +17,45 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "mbedtls/sha256.h"
 #include <string.h>
+#include <stdio.h>
 #include <stdbool.h>
 
 static const char *TAG = "LOCK_HANDLERS";
+
+// ---------------------------------------------------------------------------
+// Security helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief Compute SHA-256 of a plain-text PIN and write the 64-char lower-hex
+ *        digest (+ NUL terminator) into out[65].
+ */
+static void hash_pin(const char *pin, char out[65])
+{
+    unsigned char digest[32];
+    mbedtls_sha256((const unsigned char *)pin, strlen(pin), digest, 0);
+    for (int i = 0; i < 32; i++) {
+        sprintf(out + i * 2, "%02x", digest[i]);
+    }
+    out[64] = '\0';
+}
+
+/**
+ * @brief Constant-time comparison of two byte strings of known length.
+ *
+ * Avoids timing side-channels caused by strcmp()'s early-exit behaviour.
+ * Returns true only when every byte is identical.
+ */
+static bool ct_str_equal(const char *a, const char *b, size_t len)
+{
+    uint8_t diff = 0;
+    for (size_t i = 0; i < len; i++) {
+        diff |= (uint8_t)(a[i] ^ b[i]);
+    }
+    return diff == 0;
+}
 
 lock_state_t lock_handler_first_boot_setup(lock_state_context_t *ctx)
 {
@@ -140,14 +175,17 @@ lock_state_t lock_handler_confirming_code(lock_state_context_t *ctx)
 
     // Check if PINs match
     if (strcmp(ctx->new_pin, pin_input) == 0) {
-        ESP_LOGI(TAG, "PINs match - saving to NVS");
+        ESP_LOGI(TAG, "PINs match - hashing and saving to NVS");
 
-        esp_err_t ret = lock_storage_save_pin(ctx->new_pin);
+        // Hash the plain-text PIN; only the digest is persisted
+        char pin_hash[65];
+        hash_pin(ctx->new_pin, pin_hash);
+
+        esp_err_t ret = lock_storage_save_pin(pin_hash);
         if (ret == ESP_OK) {
-            strcpy(ctx->current_pin, ctx->new_pin);
+            strcpy(ctx->current_pin, pin_hash);
 
-            lock_ui_display_success("Saved!", 0);
-            vTaskDelay(pdMS_TO_TICKS(1500));
+            lock_ui_display_success("Saved!", 1500);
 
             if (*ctx->return_state == STATE_MENU) {
                 lock_system_start_autolock();
@@ -175,7 +213,7 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
     if (*ctx->was_auto_locked) {
         lcd_clear();
         lock_ui_display_centered("AUTO-LOCKED", 0);
-        lock_ui_display_centered("(30s idle)", 1);
+        lock_ui_display_centered("(15s idle)", 1);
         vTaskDelay(pdMS_TO_TICKS(2000));
         *ctx->was_auto_locked = false;  // Clear flag
     }
@@ -195,7 +233,7 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
         set_input_mode(INPUT_MODE_MASKED, true);
 
         // Read PIN from keypad
-        scanf("%15s", pin_input);
+        scanf("%8s", pin_input);
         
         // 'C' pressed: clear current input and re-prompt silently
         if (stdin_was_cancelled()) {
@@ -204,7 +242,10 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
         }
 
         // Validate PIN
-        if (strcmp(pin_input, ctx->current_pin) == 0) {
+        char pin_hash[65];
+        hash_pin(pin_input, pin_hash);
+
+        if (ct_str_equal(pin_hash, ctx->current_pin, 64)) {
             // Correct PIN - unlock
             ESP_LOGI(TAG, "Correct PIN - unlocking");
             
@@ -242,10 +283,9 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
 
 lock_state_t lock_handler_unlocked(lock_state_context_t *ctx)
 {
-    // UNLOCKED state: transition directly to menu
-    // (success message already shown by lock_handler_locked)
-    
-    // Green LED stays on from previous state
+    // UNLOCKED state: transition directly to menu.
+    // (success message + led_all_off already called by lock_handler_locked)
+    // lock_handler_menu re-enables the green LED on entry.
     
     // Start auto-lock timer when entering menu
     lock_system_start_autolock();
@@ -341,7 +381,10 @@ lock_state_t lock_handler_changing_code(lock_state_context_t *ctx)
     ESP_LOGI(TAG, "Current PIN entered for validation");
     
     // Validate current PIN
-    if (strcmp(pin_input, ctx->current_pin) == 0) {
+    char pin_hash[65];
+    hash_pin(pin_input, pin_hash);
+
+    if (ct_str_equal(pin_hash, ctx->current_pin, 64)) {
         ESP_LOGI(TAG, "Current PIN correct - allow change");
         lcd_clear();
         lock_ui_display_centered("Verified!", 0);
@@ -397,7 +440,15 @@ lock_state_t lock_handler_lockout(lock_state_context_t *ctx)
         printf("Wait %2ds...    ", remaining);
         
         if (remaining > 0) {
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            // Poll keypad each second so keypresses can restore the backlight.
+            // The key itself is discarded — lockout is not cancellable.
+            for (int ms = 0; ms < 1000; ms += 50) {
+                char k = keypad_getkey();
+                if (k != '\0') {
+                    lock_system_reset_backlight_timer();
+                }
+                vTaskDelay(pdMS_TO_TICKS(50));
+            }
         }
     }
     

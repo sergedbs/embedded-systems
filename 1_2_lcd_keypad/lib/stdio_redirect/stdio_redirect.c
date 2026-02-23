@@ -177,6 +177,9 @@ static bool kbd_collect_line(void)
     while (idx < KBD_BUF_SIZE - 2) { // reserve room for '\n' and '\0'
         char key = keypad_getkey_blocking();
 
+        // Debounce glitch: scan returned nothing — ignore silently
+        if (key == '\0') continue;
+
         if (s_keypress_cb) s_keypress_cb();
 
         if (key == 'C') {

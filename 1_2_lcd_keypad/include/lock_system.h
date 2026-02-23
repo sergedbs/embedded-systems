@@ -39,8 +39,8 @@ esp_err_t lock_system_init(void);
 void lock_system_run(void);
 
 /**
- * @brief Start auto-lock timer (30 seconds)
- * 
+ * @brief Start auto-lock timer (AUTOLOCK_TIMEOUT_SEC seconds)
+ *
  * Call when entering UNLOCKED/MENU states
  */
 void lock_system_start_autolock(void);
@@ -60,16 +60,16 @@ void lock_system_reset_autolock(void);
 void lock_system_stop_autolock(void);
 
 /**
- * @brief Start backlight auto-off timer (60 seconds)
- * 
+ * @brief Start backlight auto-off timer (BACKLIGHT_TIMEOUT_SEC seconds)
+ *
  * Call when system starts or after any user activity
  */
 void lock_system_start_backlight_timer(void);
 
 /**
  * @brief Reset backlight timer on user activity
- * 
- * Turns backlight back on and resets 60-second timer
+ *
+ * Turns backlight back on and resets the BACKLIGHT_TIMEOUT_SEC timer
  */
 void lock_system_reset_backlight_timer(void);
 

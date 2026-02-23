@@ -1,7 +1,6 @@
 #include "lcd_i2c.h"
 #include "config_pins.h"
 #include "driver/i2c.h"
-#include "driver/gpio.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"

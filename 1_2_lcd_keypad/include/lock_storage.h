@@ -20,12 +20,16 @@
 bool lock_storage_load_pin(char *pin_buf, size_t buf_size);
 
 /**
- * @brief Save PIN to NVS storage
- * 
- * @param pin PIN string to save (must be 4-8 digits)
+ * @brief Save PIN hash to NVS storage
+ *
+ * Caller must pass the SHA-256 hex string (64 chars + NUL) produced by
+ * hashing the raw PIN.  Validation of PIN policy (length, digits-only)
+ * is the caller's responsibility.
+ *
+ * @param pin_hash 64-character lower-hex SHA-256 digest string
  * @return ESP_OK on success, error code otherwise
  */
-esp_err_t lock_storage_save_pin(const char *pin);
+esp_err_t lock_storage_save_pin(const char *pin_hash);
 
 /**
  * @brief Initialize NVS storage system

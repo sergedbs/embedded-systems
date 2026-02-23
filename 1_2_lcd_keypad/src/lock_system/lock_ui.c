@@ -37,14 +37,10 @@ void lock_ui_display_centered(const char *text, uint8_t row)
     // Write entire row - set cursor and use lcd_print
     lcd_set_cursor(0, row);
     
-    // Write only 15 characters to avoid cursor wrap issue
-    for (uint8_t i = 0; i < LCD_COLS - 1; i++) {
+    // Write all columns; lcd_putc clamps at LCD_COLS-1 so no auto-wrap occurs
+    for (uint8_t i = 0; i < LCD_COLS; i++) {
         lcd_putc(row_buffer[i]);
     }
-    
-    // Manually set cursor to last position and write last char
-    lcd_set_cursor(LCD_COLS - 1, row);
-    lcd_putc(row_buffer[LCD_COLS - 1]);
 }
 
 void lock_ui_display_title(const char *title)

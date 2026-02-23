@@ -4,7 +4,6 @@
  */
 
 #include "lock_storage.h"
-#include "config_pins.h"
 #include "config_app.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
@@ -72,10 +71,8 @@ esp_err_t lock_storage_save_pin(const char *pin)
     nvs_handle_t nvs_handle;
     esp_err_t err;
 
-    size_t pin_len = strlen(pin);
-    if (pin_len < PIN_MIN_LENGTH || pin_len > PIN_MAX_LENGTH) {
-        ESP_LOGE(TAG, "Invalid PIN length: %d (must be %d-%d)",
-                 pin_len, PIN_MIN_LENGTH, PIN_MAX_LENGTH);
+    if (pin == NULL || strlen(pin) == 0) {
+        ESP_LOGE(TAG, "Refusing to save empty PIN");
         return ESP_ERR_INVALID_ARG;
     }
 

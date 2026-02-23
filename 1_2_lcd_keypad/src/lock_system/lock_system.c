@@ -22,7 +22,7 @@ static const char *TAG = "LOCK_SYSTEM";
 // Global state variables
 static lock_state_t current_state;
 static lock_state_t return_state = STATE_LOCKED;
-static char current_pin[PIN_MAX_LENGTH + 1];
+static char current_pin[65];    // SHA-256 hex digest (64 chars + NUL)
 static char new_pin[PIN_MAX_LENGTH + 1];
 static uint8_t failed_attempts = 0;
 static bool was_auto_locked = false;  // Flag for auto-lock timer
