@@ -36,8 +36,8 @@ static uint8_t backlight_state = LCD_BL;    // Backlight on by default
 static uint8_t current_col = 0;
 static uint8_t current_row = 0;
 
-// Row start addresses for 16x2 LCD (standard HD44780 addressing)
-static const uint8_t row_offsets[2] = {0x00, 0x40};
+// Row start addresses for 20x4 LCD
+static const uint8_t row_offsets[4] = {0x00, 0x40, 0x14, 0x54};
 
 /**
  * @brief Write a byte to PCF8574 via i2c
@@ -257,11 +257,14 @@ void lcd_putc(char c)
     lcd_write_data((uint8_t)c);
     current_col++;
     
-    // Don't auto-wrap - let manual positioning handle row changes
-    // Auto-wrap causes issues on 16x2 LCD because addresses don't increment naturally
-    // Row 0 ends at 0x0F, but row 1 starts at 0x40 (not 0x10)
+    // Handle line wrapping
     if (current_col >= LCD_COLS) {
-        current_col = LCD_COLS - 1;  // Stay at last position instead of wrapping
+        current_col = 0;
+        current_row++;
+        if (current_row >= LCD_ROWS) {
+            current_row = 0;  // Wrap to top
+        }
+        lcd_set_cursor(current_col, current_row);
     }
 }
 

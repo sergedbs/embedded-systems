@@ -7,6 +7,7 @@
 
 #include "stdio_redirect.h"
 #include "config_pins.h"
+#include "lock_system.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
@@ -16,8 +17,6 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/timers.h"
-
-#define LCD_COLS 20
 
 // Input mode settings
 static input_mode_t current_input_mode = INPUT_MODE_NORMAL;
@@ -163,6 +162,24 @@ int lcd_scanf(const char *format, ...)
     // Read characters until enter ('#') is pressed
     while (idx < sizeof(buffer) - 1) {
         char key = keypad_getkey_blocking();
+        
+        // Reset backlight timer on keypress (user activity)
+        lock_system_reset_backlight_timer();
+        
+        // Check for cancel key first (C key)
+        if (key == 'C') {
+            // Cancel operation - return special value
+            // Stop reveal timer if active
+            if (reveal_timer != NULL && xTimerIsTimerActive(reveal_timer)) {
+                xTimerStop(reveal_timer, 0);
+            }
+            
+            // Reset modes to defaults
+            current_input_mode = INPUT_MODE_NORMAL;
+            digits_only_filter = false;
+            
+            return -1;  // Special return value indicating cancellation
+        }
         
         // Filter out invalid characters if digits-only mode is enabled
         if (digits_only_filter) {

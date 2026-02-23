@@ -6,7 +6,7 @@
 #include "esp_err.h"
 
 /**
- * @brief Initialize LCD1602 (16x2) with i2c communication via PCF8574
+ * @brief Initialize LCD2004 with i2c communication via PCF8574
  * 
  * Initializes i2c bus and LCD in 4-bit mode with proper HD44780 sequence.
  * 
@@ -22,8 +22,8 @@ void lcd_clear(void);
 /**
  * @brief Set cursor position on LCD
  * 
- * @param col Column position (0-15)
- * @param row Row position (0-1)
+ * @param col Column position (0-19)
+ * @param row Row position (0-3)
  */
 void lcd_set_cursor(uint8_t col, uint8_t row);
 
@@ -61,21 +61,21 @@ void lcd_home(void);
 /**
  * @brief Clear a specific row on the LCD
  * 
- * @param row Row to clear (0-1)
+ * @param row Row to clear (0-3)
  */
 void lcd_clear_row(uint8_t row);
 
 /**
  * @brief Get current cursor column position
  * 
- * @return Current column (0-15)
+ * @return Current column (0-19)
  */
 uint8_t lcd_get_cursor_col(void);
 
 /**
  * @brief Get current cursor row position
  * 
- * @return Current row (0-1)
+ * @return Current row (0-3)
  */
 uint8_t lcd_get_cursor_row(void);
 

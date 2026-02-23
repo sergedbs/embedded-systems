@@ -18,7 +18,8 @@ typedef enum {
     STATE_LOCKED,              // System locked - waiting for PIN
     STATE_UNLOCKED,            // System unlocked - show success
     STATE_MENU,                // Display menu options
-    STATE_CHANGING_CODE        // Validate old PIN before changing
+    STATE_CHANGING_CODE,       // Validate old PIN before changing
+    STATE_LOCKOUT              // Too many failed attempts - temporary lockout
 } lock_state_t;
 
 /**
@@ -57,5 +58,19 @@ void lock_system_reset_autolock(void);
  * Call when leaving UNLOCKED/MENU states
  */
 void lock_system_stop_autolock(void);
+
+/**
+ * @brief Start backlight auto-off timer (60 seconds)
+ * 
+ * Call when system starts or after any user activity
+ */
+void lock_system_start_backlight_timer(void);
+
+/**
+ * @brief Reset backlight timer on user activity
+ * 
+ * Turns backlight back on and resets 60-second timer
+ */
+void lock_system_reset_backlight_timer(void);
 
 #endif // LOCK_SYSTEM_H

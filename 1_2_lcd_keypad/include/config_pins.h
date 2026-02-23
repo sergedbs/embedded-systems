@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 // ============================================================================
-// LCD2004 i2c Configuration
+// LCD1602 i2c Configuration (16x2 LCD)
 // ============================================================================
 #define GPIO_LCD_SDA        21
 #define GPIO_LCD_SCL        22
@@ -12,8 +12,8 @@
 #define LCD_I2C_FREQ_HZ     100000      // 100kHz standard mode
 #define LCD_I2C_ADDR_1      0x27        // Default PCF8574 address
 #define LCD_I2C_ADDR_2      0x3F        // Alternative address (try if 0x27 fails)
-#define LCD_COLS            20          // 20 columns
-#define LCD_ROWS            4           // 4 rows
+#define LCD_COLS            16          // 16 columns
+#define LCD_ROWS            2           // 2 rows
 
 // ============================================================================
 // Keypad 4x4 Matrix Configuration
