@@ -13,7 +13,7 @@ A PIN-based security lock implemented entirely in native ESP-IDF (no Arduino). T
 - **Auto-lock timer** — menu inactivity for 15 s automatically locks the system
 - **Backlight auto-off** — any inactivity for 30 s turns backlight off; next keypress restores it
 - **Full STDIO retargeting** — `printf()` → LCD, `scanf()` → keypad via ESP-IDF VFS drivers
-- **NVS persistence** — PIN survives reboots and power cycles
+- **NVS persistence** — PIN hash (SHA-256) survives reboots and power cycles; plaintext PIN is never written to flash
 - **LED + buzzer feedback** — green/red LEDs and distinct beep patterns for every event
 - **Wokwi simulation** — full hardware simulation via `diagram.json`
 
@@ -240,8 +240,11 @@ pio run --target upload --target monitor
 
 ## NVS Storage
 
-PIN is stored under namespace `"storage"`, key `"user_pin"` as a string.  
-On first boot (or erased flash), `lock_storage_load_pin()` returns `false` and the setup wizard runs. The PIN survives reboots and power cycles.
+The raw PIN is **never stored**. Before writing to NVS, `lock_handlers.c` computes a SHA-256 digest of the PIN via `mbedtls_sha256()` and stores the 64-character lower-hex string under namespace `"storage"`, key `"user_pin"`.
+
+All comparisons (unlock, PIN change verification) hash the input first and compare the digest using a constant-time routine (`ct_str_equal`) to prevent timing side-channels.
+
+On first boot (or erased flash), `lock_storage_load_pin()` returns `false` and the setup wizard runs.
 
 ## Resources
 
