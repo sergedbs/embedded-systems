@@ -64,26 +64,20 @@ void app_main(void)
     }
     
     ESP_LOGI(TAG, "All peripherals initialized successfully!");
-    
-    // Display welcome message on LCD
-    lcd_clear();
-    lcd_printf("=== LOCK SYSTEM ===\n");
-    lcd_printf("\n");
-    lcd_printf("\n");
-    lcd_printf("  Starting...");
-    
-    // Success beep
-    vTaskDelay(pdMS_TO_TICKS(500));
+
+    // Boot complete signal
     buzzer_success();
-    vTaskDelay(pdMS_TO_TICKS(1500));
-    
+    vTaskDelay(pdMS_TO_TICKS(500));
+
     // Initialize lock system (NVS, load PIN, determine initial state)
     ret = lock_system_init();
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Lock system initialization failed!");
         lcd_clear();
-        lcd_printf("ERROR!\n");
-        lcd_printf("System init failed\n");
+        lcd_set_cursor(0, 0);
+        lcd_print("ERROR!");
+        lcd_set_cursor(0, 1);
+        lcd_print("Init failed");
         return;
     }
     

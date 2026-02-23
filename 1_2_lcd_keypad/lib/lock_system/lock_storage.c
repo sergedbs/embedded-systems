@@ -71,39 +71,35 @@ esp_err_t lock_storage_save_pin(const char *pin)
 {
     nvs_handle_t nvs_handle;
     esp_err_t err;
-    
-    // Validate PIN length
+
     size_t pin_len = strlen(pin);
     if (pin_len < PIN_MIN_LENGTH || pin_len > PIN_MAX_LENGTH) {
-        ESP_LOGE(TAG, "Invalid PIN length: %d (must be %d-%d)", 
+        ESP_LOGE(TAG, "Invalid PIN length: %d (must be %d-%d)",
                  pin_len, PIN_MIN_LENGTH, PIN_MAX_LENGTH);
         return ESP_ERR_INVALID_ARG;
     }
-    
-    // Open NVS
+
     err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open NVS for writing: %s", esp_err_to_name(err));
         return err;
     }
-    
-    // Write PIN
+
     err = nvs_set_str(nvs_handle, NVS_PIN_KEY, pin);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to write PIN to NVS: %s", esp_err_to_name(err));
-        nvs_close(nvs_handle);
-        return err;
+        goto cleanup;
     }
-    
-    // Commit changes
+
     err = nvs_commit(nvs_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to commit NVS: %s", esp_err_to_name(err));
-        nvs_close(nvs_handle);
-        return err;
+        goto cleanup;
     }
-    
-    nvs_close(nvs_handle);
+
     ESP_LOGI(TAG, "PIN saved to NVS successfully");
-    return ESP_OK;
+
+cleanup:
+    nvs_close(nvs_handle);
+    return err;
 }

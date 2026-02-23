@@ -33,7 +33,6 @@ static bool autolock_enabled = false;
 
 // Backlight auto-off timer
 static TimerHandle_t backlight_timer = NULL;
-static bool backlight_timer_enabled = false;
 
 // State context for handlers
 static lock_state_context_t state_ctx = {
@@ -121,7 +120,6 @@ static void backlight_timer_callback(TimerHandle_t xTimer)
 {
     ESP_LOGI(TAG, "Backlight timer expired - turning off backlight");
     lcd_backlight(false);
-    backlight_timer_enabled = false;
 }
 
 void lock_system_start_backlight_timer(void)
@@ -147,8 +145,7 @@ void lock_system_start_backlight_timer(void)
     
     // Start/restart the timer
     if (xTimerStart(backlight_timer, 0) == pdPASS) {
-        backlight_timer_enabled = true;
-        ESP_LOGD(TAG, "Backlight timer started (60 seconds)");
+        ESP_LOGD(TAG, "Backlight timer started (%d seconds)", BACKLIGHT_TIMEOUT_SEC);
     } else {
         ESP_LOGE(TAG, "Failed to start backlight timer");
     }
@@ -167,17 +164,13 @@ void lock_system_reset_backlight_timer(void)
     
     // For one-shot timers, check if timer is active
     if (xTimerIsTimerActive(backlight_timer)) {
-        // Timer is running - reset it (extends the 60s period)
         if (xTimerReset(backlight_timer, 0) == pdPASS) {
-            backlight_timer_enabled = true;  // Ensure flag stays true
             ESP_LOGD(TAG, "Backlight timer reset");
         } else {
             ESP_LOGW(TAG, "Failed to reset backlight timer");
         }
     } else {
-        // Timer has expired or stopped - restart it
         if (xTimerStart(backlight_timer, 0) == pdPASS) {
-            backlight_timer_enabled = true;
             ESP_LOGD(TAG, "Backlight timer restarted");
         } else {
             ESP_LOGW(TAG, "Failed to restart backlight timer");

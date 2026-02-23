@@ -49,14 +49,12 @@ void lock_ui_display_centered(const char *text, uint8_t row)
 
 void lock_ui_display_title(const char *title)
 {
-    // For 16x2: Display title on row 0 (centered function will clear it)
     lock_ui_display_centered(title, 0);
 }
 
 void lock_ui_display_error(const char *message, uint32_t delay_ms)
 {
-    // For 16x2: Display error on row 1
-    lock_ui_clear_row(1);
+    lcd_clear_row(1);
     lock_ui_display_centered(message, 1);
     
     led_error();
@@ -71,8 +69,7 @@ void lock_ui_display_error(const char *message, uint32_t delay_ms)
 
 void lock_ui_display_success(const char *message, uint32_t delay_ms)
 {
-    // For 16x2: Display success on row 1
-    lock_ui_clear_row(1);
+    lcd_clear_row(1);
     lock_ui_display_centered(message, 1);
     
     led_success();
@@ -83,25 +80,4 @@ void lock_ui_display_success(const char *message, uint32_t delay_ms)
     }
     
     led_all_off();
-}
-
-void lock_ui_clear_content(void)
-{
-    // For 16x2: Clear row 1 (content/input area)
-    lock_ui_clear_row(1);
-}
-
-void lock_ui_clear_row(uint8_t row)
-{
-    if (row >= LCD_ROWS) {
-        return;
-    }
-    
-    lcd_set_cursor(0, row);
-    for (uint8_t i = 0; i < LCD_COLS; i++) {
-        lcd_putc(' ');
-    }
-    
-    // Reset cursor to start of row for consistency
-    lcd_set_cursor(0, row);
 }

@@ -20,8 +20,8 @@
 // ============================================================================
 // Timers
 // ============================================================================
-#define AUTOLOCK_TIMEOUT_SEC    30      // Idle time in MENU before auto-lock
-#define BACKLIGHT_TIMEOUT_SEC   60      // Idle time before backlight off
+#define AUTOLOCK_TIMEOUT_SEC    15      // Idle time in MENU before auto-lock
+#define BACKLIGHT_TIMEOUT_SEC   30      // Idle time before backlight off
 #define LOCKOUT_DURATION_SEC    30      // How long the lockout lasts
 
 // ============================================================================

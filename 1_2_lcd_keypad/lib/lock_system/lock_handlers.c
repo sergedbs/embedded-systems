@@ -68,7 +68,6 @@ lock_state_t lock_handler_setting_code(lock_state_context_t *ctx)
     // Check for cancel
     if (result == -1) {
         if (*ctx->return_state == STATE_MENU) {
-            // Changing PIN (cancelable) - show message, return to menu
             ESP_LOGI(TAG, "PIN entry cancelled");
             lcd_clear();
             lock_ui_display_centered("Cancelled", 0);
@@ -77,12 +76,10 @@ lock_state_t lock_handler_setting_code(lock_state_context_t *ctx)
             lock_system_start_autolock();
             return STATE_MENU;
         } else {
-            // First boot setup (not cancelable) - re-prompt silently
-            ESP_LOGI(TAG, "Cancel ignored - first boot setup");
             return STATE_SETTING_CODE;
         }
     }
-    
+
     // Validate PIN length
     size_t pin_len = strlen(ctx->new_pin);
     if (pin_len < PIN_MIN_LENGTH || pin_len > PIN_MAX_LENGTH) {
@@ -101,7 +98,7 @@ lock_state_t lock_handler_setting_code(lock_state_context_t *ctx)
     }
     
     ESP_LOGI(TAG, "New PIN entered (length: %d)", pin_len);
-    
+
     // Show confirmation prompt
     lcd_clear();
     lock_ui_display_centered("PIN set!", 0);
@@ -128,7 +125,7 @@ lock_state_t lock_handler_confirming_code(lock_state_context_t *ctx)
     
     // Read confirmation
     int result = lcd_scanf("%8s", pin_input);
-    
+
     // Check for cancel
     if (result == -1) {
         ESP_LOGI(TAG, "PIN confirmation cancelled");
@@ -140,28 +137,22 @@ lock_state_t lock_handler_confirming_code(lock_state_context_t *ctx)
         // Return to setting code state to re-enter PIN
         return STATE_SETTING_CODE;
     }
-    
-    ESP_LOGI(TAG, "Confirmation entered");
-    
+
     // Check if PINs match
     if (strcmp(ctx->new_pin, pin_input) == 0) {
-        // Match - save to NVS
         ESP_LOGI(TAG, "PINs match - saving to NVS");
-        
+
         esp_err_t ret = lock_storage_save_pin(ctx->new_pin);
         if (ret == ESP_OK) {
-            // Copy to current_pin
             strcpy(ctx->current_pin, ctx->new_pin);
-            
+
             lock_ui_display_success("Saved!", 0);
             vTaskDelay(pdMS_TO_TICKS(1500));
-            
-            // Restart auto-lock if returning to menu
+
             if (*ctx->return_state == STATE_MENU) {
                 lock_system_start_autolock();
             }
-            
-            // Return to appropriate state (LOCKED for first setup, MENU for change)
+
             return *ctx->return_state;
         } else {
             lock_ui_display_error("Save failed", 0);
@@ -169,7 +160,6 @@ lock_state_t lock_handler_confirming_code(lock_state_context_t *ctx)
             return STATE_SETTING_CODE;
         }
     } else {
-        // Mismatch - retry
         ESP_LOGI(TAG, "PINs don't match - retry");
         lock_ui_display_error("No match!", 0);
         vTaskDelay(pdMS_TO_TICKS(2000));
@@ -197,7 +187,7 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
     while (1) {
         // Display LOCKED title and PIN prompt (16x2 layout)
         lock_ui_display_title("LOCKED");
-        lock_ui_clear_row(1);
+        lcd_clear_row(1);
         lcd_set_cursor(0, 1);
         lcd_printf("PIN: ");
         
@@ -212,9 +202,7 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
             ESP_LOGI(TAG, "PIN input cleared");
             continue;
         }
-        
-        ESP_LOGI(TAG, "PIN entered");
-        
+
         // Validate PIN
         if (strcmp(pin_input, ctx->current_pin) == 0) {
             // Correct PIN - unlock
@@ -230,7 +218,7 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
         } else {
             // Wrong PIN - increment failed attempts
             (*ctx->failed_attempts)++;
-            ESP_LOGI(TAG, "Wrong PIN - attempt %d/3", *ctx->failed_attempts);
+            ESP_LOGI(TAG, "Wrong PIN - attempt %d/%d", *ctx->failed_attempts, MAX_FAILED_ATTEMPTS);
             
             // Check if lockout threshold reached
             if (*ctx->failed_attempts >= MAX_FAILED_ATTEMPTS) {
@@ -268,14 +256,12 @@ lock_state_t lock_handler_unlocked(lock_state_context_t *ctx)
 lock_state_t lock_handler_menu(lock_state_context_t *ctx)
 {
     lock_ui_display_title("MENU");
-    lock_ui_clear_row(1);  // Clear row 1 before displaying menu options
+    lcd_clear_row(1);
     lcd_set_cursor(0, 1);
     lcd_printf("A:Chg  D:Lock");
-    
+
     // Green LED stays on
     led_set(LED_GREEN, true);
-    
-    ESP_LOGI(TAG, "Menu displayed - waiting for selection...");
     
     // Wait for valid input (non-blocking loop to detect timer state changes)
     char key;
@@ -296,10 +282,9 @@ lock_state_t lock_handler_menu(lock_state_context_t *ctx)
             lock_system_reset_autolock();
             
             if (key == 'D') {
-                // Lock system
                 ESP_LOGI(TAG, "User selected: Lock");
                 lock_system_stop_autolock();
-                lock_ui_clear_row(1);
+                lcd_clear_row(1);
                 lock_ui_display_centered("Locking...", 1);
                 buzzer_beep(100);
                 vTaskDelay(pdMS_TO_TICKS(500));
@@ -307,7 +292,6 @@ lock_state_t lock_handler_menu(lock_state_context_t *ctx)
                 return STATE_LOCKED;
                 
             } else if (key == 'A') {
-                // Change PIN
                 ESP_LOGI(TAG, "User selected: Change PIN");
                 lock_system_stop_autolock();
                 buzzer_beep(100);
@@ -358,12 +342,10 @@ lock_state_t lock_handler_changing_code(lock_state_context_t *ctx)
     
     // Validate current PIN
     if (strcmp(pin_input, ctx->current_pin) == 0) {
-        // Correct - proceed to setting new PIN
         ESP_LOGI(TAG, "Current PIN correct - allow change");
-        
         lcd_clear();
         lock_ui_display_centered("Verified!", 0);
-        lock_ui_display_centered("\xE2\x9C\x93", 1);  // ✓
+        lcd_clear_row(1);
         
         buzzer_success();
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -373,7 +355,6 @@ lock_state_t lock_handler_changing_code(lock_state_context_t *ctx)
         return STATE_SETTING_CODE;
         
     } else {
-        // Wrong PIN - return to menu
         ESP_LOGI(TAG, "Wrong current PIN - return to menu");
         
         lock_ui_display_error("Wrong PIN!", 0);
