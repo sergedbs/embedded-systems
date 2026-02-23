@@ -58,10 +58,10 @@ lock_state_t lock_handler_setting_code(lock_state_context_t *ctx)
     
     lcd_set_cursor(0, 1);
     lcd_printf("Pin: ");
-    
+
     // Configure: reveal last char + digits only
     lcd_scanf_configure(INPUT_MODE_REVEAL_LAST, true);
-    
+
     // Read new PIN
     int result = lcd_scanf("%8s", ctx->new_pin);
     
@@ -119,10 +119,10 @@ lock_state_t lock_handler_confirming_code(lock_state_context_t *ctx)
     lock_ui_display_centered("Confirm PIN", 0);
     lcd_set_cursor(0, 1);
     lcd_printf("Pin: ");
-    
+
     // Configure: reveal last char + digits only
     lcd_scanf_configure(INPUT_MODE_REVEAL_LAST, true);
-    
+
     // Read confirmation
     int result = lcd_scanf("%8s", pin_input);
 
@@ -190,10 +190,10 @@ lock_state_t lock_handler_locked(lock_state_context_t *ctx)
         lcd_clear_row(1);
         lcd_set_cursor(0, 1);
         lcd_printf("PIN: ");
-        
+
         // Configure: masked input + digits only
         lcd_scanf_configure(INPUT_MODE_MASKED, true);
-        
+
         // Read PIN from keypad
         int result = lcd_scanf("%15s", pin_input);
         
@@ -317,10 +317,10 @@ lock_state_t lock_handler_changing_code(lock_state_context_t *ctx)
     lock_ui_display_centered("Chg PIN (C=X)", 0);
     lcd_set_cursor(0, 1);
     lcd_printf("Old: ");
-    
+
     // Configure: masked input + digits only
     lcd_scanf_configure(INPUT_MODE_MASKED, true);
-    
+
     // Read current PIN
     int result = lcd_scanf("%8s", pin_input);
     
