@@ -52,26 +52,20 @@ esp_err_t stdio_redirect_init(void);
 int lcd_printf(const char *format, ...);
 
 /**
- * @brief Set input mode for lcd_scanf
- * 
- * @param mode Input mode (NORMAL, MASKED, or REVEAL_LAST)
+ * @brief Register a callback invoked on every keypress
+ *
+ * Used by higher layers (e.g. lock_system) to reset timers without creating
+ * an upward dependency from this module.
+ *
+ * @param cb Callback function, or NULL to unregister
  */
-void lcd_scanf_set_mode(input_mode_t mode);
+void lcd_scanf_set_keypress_cb(void (*cb)(void));
 
 /**
- * @brief Set character filter for input (e.g., digits only)
- * 
- * @param digits_only true to accept only 0-9, false to accept all
- */
-void lcd_scanf_set_digits_only(bool digits_only);
-
-/**
- * @brief Unified configuration for lcd_scanf (Iteration 8)
- * 
- * Combines mode and filter settings in one call to reduce redundancy.
- * 
- * @param mode Input mode (NORMAL, MASKED, or REVEAL_LAST)
- * @param digits_only true to accept only 0-9, false to accept all
+ * @brief Configure input mode and digit filter for the next lcd_scanf call
+ *
+ * @param mode        Input masking mode
+ * @param digits_only true to accept only 0–9, false to accept all keys
  */
 void lcd_scanf_configure(input_mode_t mode, bool digits_only);
 

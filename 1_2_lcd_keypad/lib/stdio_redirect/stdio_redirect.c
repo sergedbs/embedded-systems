@@ -8,7 +8,6 @@
 #include "stdio_redirect.h"
 #include "config_pins.h"
 #include "config_app.h"
-#include "lock_system.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
@@ -23,21 +22,25 @@
 static input_mode_t current_input_mode = INPUT_MODE_NORMAL;
 static bool digits_only_filter = false;
 
-// Character reveal timer (non-blocking)
-static TimerHandle_t reveal_timer = NULL;
-static char *reveal_buffer = NULL;
-static size_t reveal_length = 0;
-static uint8_t reveal_row = 0;
-static uint8_t reveal_col = 0;
+// Keypress callback — set by higher layer to avoid upward dependency
+static void (*s_keypress_cb)(void) = NULL;
+
+// Character reveal state (non-blocking timer)
+static struct {
+    TimerHandle_t timer;
+    char         *buffer;
+    size_t        length;
+    uint8_t       row;
+    uint8_t       col;
+} s_reveal = {0};
 
 /**
  * @brief Timer callback to mask the last character after reveal delay
  */
 static void reveal_timer_callback(TimerHandle_t xTimer)
 {
-    if (reveal_buffer && reveal_length > 0) {
-        // Mask the last character
-        lcd_set_cursor(reveal_col + reveal_length - 1, reveal_row);
+    if (s_reveal.buffer && s_reveal.length > 0) {
+        lcd_set_cursor(s_reveal.col + s_reveal.length - 1, s_reveal.row);
         lcd_putc('*');
     }
 }
@@ -47,40 +50,31 @@ static void reveal_timer_callback(TimerHandle_t xTimer)
  */
 esp_err_t stdio_redirect_init(void)
 {
-    // Create the reveal timer (one-shot, non-auto-reload)
-    reveal_timer = xTimerCreate(
+    s_reveal.timer = xTimerCreate(
         "reveal_timer",
         pdMS_TO_TICKS(CHAR_REVEAL_MS),
-        pdFALSE,  // One-shot timer
+        pdFALSE,
         NULL,
         reveal_timer_callback
     );
-    
-    if (reveal_timer == NULL) {
+
+    if (s_reveal.timer == NULL) {
         return ESP_FAIL;
     }
-    
+
     return ESP_OK;
 }
 
 /**
- * @brief Set input mode for lcd_scanf
+ * @brief Register a callback invoked on every keypress
  */
-void lcd_scanf_set_mode(input_mode_t mode)
+void lcd_scanf_set_keypress_cb(void (*cb)(void))
 {
-    current_input_mode = mode;
+    s_keypress_cb = cb;
 }
 
 /**
- * @brief Set digits-only filter for PIN entry
- */
-void lcd_scanf_set_digits_only(bool digits_only)
-{
-    digits_only_filter = digits_only;
-}
-
-/**
- * @brief Unified configuration for lcd_scanf (reduces redundancy)
+ * @brief Configure input mode and digit filter
  */
 void lcd_scanf_configure(input_mode_t mode, bool digits_only)
 {
@@ -133,8 +127,8 @@ static void display_input(const char *buffer, size_t length, uint8_t row, uint8_
         }
     }
     
-    // Clear remaining characters to end of line (prevents leftover text)
-    size_t chars_to_clear = (start_col + PIN_MAX_LENGTH) - (start_col + length);
+    // Clear remaining characters to end of line
+    size_t chars_to_clear = LCD_COLS - start_col - length;
     for (size_t i = 0; i < chars_to_clear; i++) {
         lcd_putc(' ');
     }
@@ -149,117 +143,83 @@ int lcd_scanf(const char *format, ...)
 {
     char buffer[64];
     size_t idx = 0;
-    
-    // Get current cursor position (right after the prompt)
+
     uint8_t start_col = lcd_get_cursor_col();
     uint8_t start_row = lcd_get_cursor_row();
-    
-    // Clear only the input area (preserve prompts before start_col)
+
+    // Clear the input area (preserve prompt before start_col)
     for (uint8_t i = start_col; i < LCD_COLS; i++) {
         lcd_putc(' ');
     }
     lcd_set_cursor(start_col, start_row);
-    
-    // Read characters until enter ('#') is pressed
+
     while (idx < sizeof(buffer) - 1) {
         char key = keypad_getkey_blocking();
-        
-        // Reset backlight timer on keypress (user activity)
-        lock_system_reset_backlight_timer();
-        
-        // Check for cancel key first (C key)
+
+        if (s_keypress_cb) s_keypress_cb();
+
         if (key == 'C') {
-            // Cancel operation - return special value
-            // Stop reveal timer if active
-            if (reveal_timer != NULL && xTimerIsTimerActive(reveal_timer)) {
-                xTimerStop(reveal_timer, 0);
+            if (s_reveal.timer != NULL && xTimerIsTimerActive(s_reveal.timer)) {
+                xTimerStop(s_reveal.timer, 0);
             }
-            
-            // Reset modes to defaults
             current_input_mode = INPUT_MODE_NORMAL;
             digits_only_filter = false;
-            
-            return -1;  // Special return value indicating cancellation
+            return -1;
         }
-        
-        // Filter out invalid characters if digits-only mode is enabled
+
         if (digits_only_filter) {
-            // Only allow 0-9, *, and # (backspace and enter)
             if (key != '*' && key != '#' && (key < '0' || key > '9')) {
-                // Invalid character - short error beep
                 buzzer_beep(30);
-                continue;  // Skip this character
+                continue;
             }
         }
-        
+
         if (key == '#') {
-            // Enter pressed - end input
             buffer[idx] = '\0';
-            
-            // Stop reveal timer if active
-            if (reveal_timer != NULL && xTimerIsTimerActive(reveal_timer)) {
-                xTimerStop(reveal_timer, 0);
+            if (s_reveal.timer != NULL && xTimerIsTimerActive(s_reveal.timer)) {
+                xTimerStop(s_reveal.timer, 0);
             }
-            
-            // If in REVEAL_LAST mode, mask the last character immediately
             if (current_input_mode == INPUT_MODE_REVEAL_LAST && idx > 0) {
                 lcd_set_cursor(start_col + idx - 1, start_row);
                 lcd_putc('*');
             }
-            
             break;
         } else if (key == '*') {
-            // Backspace - remove last character
             if (idx > 0) {
-                // Stop reveal timer if active
-                if (reveal_timer != NULL && xTimerIsTimerActive(reveal_timer)) {
-                    xTimerStop(reveal_timer, 0);
+                if (s_reveal.timer != NULL && xTimerIsTimerActive(s_reveal.timer)) {
+                    xTimerStop(s_reveal.timer, 0);
                 }
-                
                 idx--;
                 display_input(buffer, idx, start_row, start_col);
             }
         } else {
-            // Normal character - add to buffer
             buffer[idx++] = key;
-            
-            // Display immediately
             display_input(buffer, idx, start_row, start_col);
-            
-            // If in REVEAL_LAST mode, start non-blocking timer to mask character
+
             if (current_input_mode == INPUT_MODE_REVEAL_LAST && idx > 0) {
-                // Stop any existing timer
-                if (reveal_timer != NULL && xTimerIsTimerActive(reveal_timer)) {
-                    xTimerStop(reveal_timer, 0);
+                if (s_reveal.timer != NULL && xTimerIsTimerActive(s_reveal.timer)) {
+                    xTimerStop(s_reveal.timer, 0);
                 }
-                
-                // Update timer context
-                reveal_buffer = buffer;
-                reveal_length = idx;
-                reveal_row = start_row;
-                reveal_col = start_col;
-                
-                // Start timer (non-blocking - input loop continues immediately)
-                xTimerStart(reveal_timer, 0);
+                s_reveal.buffer = buffer;
+                s_reveal.length = idx;
+                s_reveal.row    = start_row;
+                s_reveal.col    = start_col;
+                xTimerStart(s_reveal.timer, 0);
             }
         }
     }
-    
+
     buffer[idx] = '\0';
-    
-    // Parse the input using sscanf with the provided format
+
     va_list args;
     va_start(args, format);
     int ret = vsscanf(buffer, format, args);
     va_end(args);
-    
-    // Reset modes to defaults
+
     current_input_mode = INPUT_MODE_NORMAL;
     digits_only_filter = false;
-    
-    // Clear timer context
-    reveal_buffer = NULL;
-    reveal_length = 0;
-    
+    s_reveal.buffer = NULL;
+    s_reveal.length = 0;
+
     return ret;
 }

@@ -204,7 +204,7 @@
 | 3 | `led.c/h` | Fix `led_all_off()` inconsistency, remove debug logs | ✅ |
 | 4 | `keypad.c/h` | Extract helper, make `is_pressed` static | ✅ |
 | 5 | `lcd_i2c.c/h` | Remove `lcd_home()`, fix stale docstrings | ✅ |
-| 6 | `stdio_redirect.c/h` | Remove deprecated API, fix layering with callback, group reveal struct | ⬜ |
+| 6 | `stdio_redirect.c/h` | Remove deprecated API, fix layering with callback, group reveal struct | ✅ |
 | 7 | `lock_storage.c` | Fix NVS handle leak on error paths | ⬜ |
 | 8 | `lock_ui.c/h` | Remove `clear_row` duplicate, fix stale docs | ⬜ |
 | 9 | `lock_handlers.c` | Fix UTF-8 garbage char, trim noise logs | ⬜ |

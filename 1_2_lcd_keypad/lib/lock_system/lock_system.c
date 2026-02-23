@@ -6,6 +6,7 @@
 #include "lock_system.h"
 #include "lock_storage.h"
 #include "lock_handlers.h"
+#include "stdio_redirect.h"
 #include "config_pins.h"
 #include "config_app.h"
 #include "lcd_i2c.h"
@@ -212,7 +213,11 @@ esp_err_t lock_system_init(void)
     
     // Start backlight timer
     lock_system_start_backlight_timer();
-    
+
+    // Register keypress callback so the input layer can reset the backlight
+    // timer without depending on lock_system directly
+    lcd_scanf_set_keypress_cb(lock_system_reset_backlight_timer);
+
     return ESP_OK;
 }
 
