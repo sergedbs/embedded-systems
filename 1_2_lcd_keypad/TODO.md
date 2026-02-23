@@ -479,12 +479,12 @@ RS = Register Select (0=command, 1=data)
 **Tasks:**
 
 - [x] **2.1 Implement `lib/stdio_redirect/`**
-  - `stdio_redirect.h`: Declare `stdio_redirect_init()`
+  - `stdio_redirect.h`: Declare `stdio_redirect_init()`, `lcd_printf()`, `lcd_scanf()`
   - `stdio_redirect.c`:
-    - Implement `_write()`: loop chars, call `lcd_putc()`
-    - Implement `_read()`: call `keypad_getkey_blocking()`, echo to LCD, handle `*` backspace, convert `#` to `\n`
-    - `stdio_redirect_init()`: set `setvbuf()` unbuffered
-  - ⚠️ Note: Implementation in `src/` instead of `lib/stdio_redirect/`
+    - Implement `lcd_printf()`: wrapper using vsnprintf + lcd_print
+    - Implement `lcd_scanf()`: read from keypad, echo to LCD, handle `*` backspace, `#` to end input
+    - `stdio_redirect_init()`: minimal setup (wrapper-based approach)
+  - ✅ Now properly located in `lib/stdio_redirect/` (refactored from `src/`)
 
 - [x] **2.2 Update `src/main.c`**
   - Call `stdio_redirect_init()` after peripheral init
@@ -536,28 +536,38 @@ RS = Register Select (0=command, 1=data)
 
 **Tasks:**
 
-- [ ] **4.1 NVS Integration**
-  - Initialize NVS in `main.c`: `nvs_flash_init()`
-  - Create functions:
-    - `load_pin_from_nvs(char *pin_buf)` → returns true if exists
-    - `save_pin_to_nvs(const char *pin)`
+- [x] **4.1 NVS Integration**
+  - Initialize NVS in `lock_system_init()`: `nvs_flash_init()`
+  - Create functions in `lib/lock_system/`:
+    - `load_pin_from_nvs(char *pin_buf, size_t buf_size)` → returns true if exists
+    - `save_pin_to_nvs(const char *pin)` → saves to NVS with validation
 
-- [ ] **4.2 First Boot Setup**
+- [x] **4.2 First Boot Setup**
   - On startup: try `load_pin_from_nvs()`
   - If PIN doesn't exist:
     - Display "=== SETUP WIZARD ==="
+    - STATE_FIRST_BOOT_SETUP → STATE_SETTING_CODE
     - Prompt "Set PIN (4-8 digits):"
-    - Read input (4-8 digits only)
+    - Validate: length (4-8), digits only (0-9)
     - Prompt "Confirm PIN:"
     - Match → save to NVS → transition to LOCKED
-    - Mismatch → error, retry
+    - Mismatch → error, retry from STATE_SETTING_CODE
+
+- [x] **4.3 Code Refactoring**
+  - Extracted state machine to `lib/lock_system/lock_system.c`
+  - Moved NVS functions to lock_system module
+  - Simplified `main.c` to just peripheral init + lock_system_run()
+  - Each state has dedicated handler function
+  - Clean separation of concerns
 
 **Verification:**
 
-- First boot → setup wizard appears
-- Set PIN, confirm → saved to NVS
-- Reboot → PIN loaded, setup skipped
-- Unlock with saved PIN works
+- [x] First boot → setup wizard appears
+- [x] Set PIN, confirm → saved to NVS
+- [x] Reboot → PIN loaded, setup skipped
+- [x] Unlock with saved PIN works
+- [x] PIN validation (length, digits only) works
+- [x] Code properly modularized across lib/ modules
 
 ---
 
@@ -567,44 +577,48 @@ RS = Register Select (0=command, 1=data)
 
 **Tasks:**
 
-- [ ] **5.1 Extract state machine to `lib/lock_system/`**
-  - Define `lock_state_t` enum
-  - Implement state handlers:
-    - `handle_first_boot_setup()`
-    - `handle_locked()`
-    - `handle_unlocked()`
-    - `handle_menu()`
-    - `handle_changing_code()`
-    - `handle_confirming_code()`
+- [x] **5.1 State machine architecture**
+  - Added STATE_MENU and STATE_CHANGING_CODE to enum
+  - Implemented dedicated handler functions:
+    - `handle_menu()` - Display menu and handle selection
+    - `handle_changing_code()` - Validate old PIN before allowing change
+    - Updated `handle_unlocked()` - Show success then transition to menu
+  - Added `return_state` variable to track where to return after PIN change
 
-- [ ] **5.2 UNLOCKED menu**
+- [x] **5.2 UNLOCKED menu**
   - Display:
 
     ```txt
-    === UNLOCKED ===
-    1. Lock
-    2. Change Code
+    === MENU ===
+    
+    1. Lock System
+    2. Change PIN
     ```
 
-  - Read keypad input
-  - '1' → LOCKED
-  - '2' → CHANGING_CODE
-  - Start 30s autolock timer
+  - Read keypad input with validation
+  - '1' → LOCKED (with lock confirmation)
+  - '2' → STATE_CHANGING_CODE
+  - Invalid input → error beep
+  - Green LED stays on during menu
 
-- [ ] **5.3 Change Code Flow**
-  - Prompt "Enter current PIN:"
-  - Validate → wrong: error, return to UNLOCKED
-  - Prompt "Enter new PIN (4-8 digits):"
-  - Prompt "Confirm new PIN:"
-  - Match → save to NVS, success message → UNLOCKED
-  - Mismatch → error, retry
+- [x] **5.3 Change Code Flow**
+  - Prompt "Enter current PIN:" in STATE_CHANGING_CODE
+  - Validate old PIN:
+    - Correct → Set return_state=MENU, go to STATE_SETTING_CODE
+    - Wrong → Error message, return to MENU
+  - Reuse existing STATE_SETTING_CODE and STATE_CONFIRMING_CODE
+  - After successful change, return to MENU (not LOCKED)
+  - Full validation maintained (4-8 digits, numbers only)
 
 **Verification:**
 
-- Unlock → see menu
-- Select "Change Code" → flow works
-- Old PIN validation works
-- New PIN saved to NVS
+- [x] Unlock → see menu with options
+- [x] Select "1" → locks system
+- [x] Select "2" → prompts for current PIN
+- [x] Wrong old PIN → error, return to menu
+- [x] Correct old PIN → proceeds to new PIN entry
+- [x] New PIN saved to NVS successfully
+- [x] After change → returns to menu (not locked)
 
 ---
 
@@ -834,29 +848,57 @@ RS = Register Select (0=command, 1=data)
 
 ## 🚀 CURRENT STATUS
 
-**Iteration:** Iteration 3 (Simple Lock/Unlock) - COMPLETE ✅
-**Completed Tasks:** 13/40+
+**Iteration:** Iteration 5 (Menu & Code Change) - COMPLETE ✅
+**Completed Tasks:** 26/40+
 **Progress:**
 
 - ✅ Iteration 1: COMPLETE - All hardware drivers working
+  - LCD i2c, Keypad, LED, Buzzer modules fully functional
+  - All in separate `lib/` modules with clean APIs
+  
 - ✅ Iteration 2: COMPLETE - STDIO redirect (lcd_printf/lcd_scanf) implemented
-- ✅ Iteration 3: COMPLETE - Lock/unlock with hardcoded PIN "1234"
+  - Wrapper functions in `lib/stdio_redirect/`
+  - Printf-style formatting to LCD
+  - Scanf-style input from keypad with backspace support
+  
+- ✅ Iteration 3: COMPLETE - Lock/unlock functionality
   - State machine with LOCKED/UNLOCKED states
   - PIN validation with visual/audio feedback
   - LED indicators (green=unlocked, red=error)
-- ⏳ Iteration 4-7: Not started
+  
+- ✅ Iteration 4: COMPLETE - NVS Storage & First-Boot Setup
+  - NVS integration for PIN persistence
+  - First-boot setup wizard (STATE_FIRST_BOOT_SETUP)
+  - PIN setting + confirmation flow (STATE_SETTING_CODE, STATE_CONFIRMING_CODE)
+  - Input validation (4-8 digits, numbers only)
+  - **Code refactored:** State machine extracted to `lib/lock_system/`
+  - **Clean architecture:** main.c now only 93 lines (init + run)
+  - PIN persists across reboots
+  
+- ✅ Iteration 5: COMPLETE - Menu System & PIN Change
+  - STATE_MENU with "Lock" and "Change PIN" options
+  - STATE_CHANGING_CODE validates old PIN before allowing change
+  - Reuses existing PIN entry/confirmation states
+  - Smart return_state handling (LOCKED for setup, MENU for changes)
+  - Full user flow: Unlock → Menu → Change PIN → Validate Old → Set New → Confirm → Back to Menu
+  - All validation rules enforced throughout
+  
+- ⏳ Iteration 6-7: Not started
+  - UI enhancements (centering, masking, last-char reveal)
+  - Auto-lock timer (30 seconds)
+  - Polish and optimization
 
 **Next Steps:**
 
-1. Test Iteration 3 in Wokwi simulator
-2. Begin Iteration 4: NVS storage and first-boot setup wizard
-3. Implement PIN persistence across reboots
-**Next Steps:** Begin Iteration 1 → Create `config_pins.h` and LCD driver
-23
+1. ✅ Test Iteration 5 in Wokwi simulator
+2. Begin Iteration 6: UI enhancements
+3. Implement centered text helper function
+4. Add asterisk masking for PIN entry
+5. Implement last-char reveal (500ms)
 
 ---
 
-**Last Updated:** 2026-02-11
+**Last Updated:** 2026-02-23
 **Project Type:** Embedded Systems Lab Assignment
 **Platform:** ESP32-IDF 5.5.0 + Wokwi
 **Target:** Lock/Unlock Security System with STDIO Retargeting

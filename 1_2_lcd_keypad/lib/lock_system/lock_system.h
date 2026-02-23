@@ -1,16 +1,6 @@
 /**
  * @file lock_system.h
- * @brief Lock system state machine and UI logic
- * 
- * Handles:
- * - Lock/unlock state machine
- * - First-boot setup wizard
- * - PIN validation and storage (NVS)
- * - User interface flows
- * - Code change functionality
- * 
- * @author ESP32 Lock System
- * @date 2026
+ * @brief Lock system state machine and public API
  */
 
 #ifndef LOCK_SYSTEM_H
@@ -19,13 +9,22 @@
 #include "esp_err.h"
 
 /**
+ * @brief Lock system states
+ */
+typedef enum {
+    STATE_FIRST_BOOT_SETUP,    // Setup wizard - set initial PIN
+    STATE_SETTING_CODE,        // User entering new PIN
+    STATE_CONFIRMING_CODE,     // User confirming new PIN
+    STATE_LOCKED,              // System locked - waiting for PIN
+    STATE_UNLOCKED,            // System unlocked - show success
+    STATE_MENU,                // Display menu options
+    STATE_CHANGING_CODE        // Validate old PIN before changing
+} lock_state_t;
+
+/**
  * @brief Initialize lock system
  * 
- * - Initializes NVS
- * - Loads PIN from NVS if exists
- * - Determines initial state (FIRST_BOOT_SETUP or LOCKED)
- * 
- * Must be called after all peripherals are initialized.
+ * Initializes NVS, loads saved PIN if exists, sets initial state
  * 
  * @return ESP_OK on success, error code otherwise
  */
@@ -34,15 +33,7 @@ esp_err_t lock_system_init(void);
 /**
  * @brief Run lock system state machine
  * 
- * This is the main loop that never returns.
- * Handles all states:
- * - First boot setup
- * - Locked (PIN entry)
- * - Unlocked (menu)
- * - Code setting/confirmation
- * - Code changing
- * 
- * Call this after lock_system_init().
+ * Main loop - never returns
  */
 void lock_system_run(void);
 
