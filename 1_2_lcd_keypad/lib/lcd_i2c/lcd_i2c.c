@@ -4,6 +4,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
+#include "esp_rom_sys.h"    // esp_rom_delay_us() - tick-rate-independent busy-wait
 #include <string.h>
 
 static const char *TAG = "LCD_I2C";
@@ -60,10 +61,11 @@ static esp_err_t pcf8574_write(uint8_t data)
  */
 static void lcd_pulse_enable(uint8_t data)
 {
-    pcf8574_write(data | LCD_EN);
-    vTaskDelay(pdMS_TO_TICKS(1));  // EN pulse must be >450ns
-    pcf8574_write(data & ~LCD_EN);
-    vTaskDelay(pdMS_TO_TICKS(1));  // Command needs >37us to settle
+    // Each pcf8574_write() I2C transaction at 100 kHz takes ~200 µs,
+    // which satisfies both the >450 ns EN-high pulse and the >37 µs
+    // post-falling-edge settle time without any extra delay.
+    pcf8574_write(data | LCD_EN);   // EN high
+    pcf8574_write(data & ~LCD_EN);  // EN low  — LCD latches on falling edge
 }
 
 /**
@@ -93,7 +95,12 @@ static void lcd_send(uint8_t value, uint8_t mode)
 static void lcd_command(uint8_t cmd)
 {
     lcd_send(cmd, 0);           // RS=0 for command
-    vTaskDelay(pdMS_TO_TICKS(2));
+    // Clear (0x01) and Return Home (0x02) need up to 1.52 ms to execute.
+    // All other commands need only 37 µs, covered by I2C transaction time.
+    // Use busy-wait: pdMS_TO_TICKS(2) == 0 at CONFIG_FREERTOS_HZ=100.
+    if (cmd == LCD_CMD_CLEAR || cmd == LCD_CMD_HOME) {
+        esp_rom_delay_us(2000);
+    }
 }
 
 /**
@@ -102,7 +109,7 @@ static void lcd_command(uint8_t cmd)
 static void lcd_write_data(uint8_t data)
 {
     lcd_send(data, LCD_RS);     // RS=1 for data
-    vTaskDelay(pdMS_TO_TICKS(1));
+    // 37 µs settle time is covered by the I2C transaction overhead (~200 µs)
 }
 
 esp_err_t lcd_init(void)
@@ -152,20 +159,22 @@ esp_err_t lcd_init(void)
     
     // HD44780 initialization sequence for 4-bit mode
     // Reference: https://www.sparkfun.com/datasheets/LCD/HD44780.pdf (page 46)
+    // IMPORTANT: use esp_rom_delay_us() here — pdMS_TO_TICKS(N) rounds to 0
+    // when CONFIG_FREERTOS_HZ=100 (10 ms/tick) and N < 10.
     
     // Initial sequence: send 0x03 three times
     lcd_write_nibble(0x03, 0);
-    vTaskDelay(pdMS_TO_TICKS(5));
+    esp_rom_delay_us(5000);   // Datasheet requires >4.1 ms after first send
     
     lcd_write_nibble(0x03, 0);
-    vTaskDelay(pdMS_TO_TICKS(1));
+    esp_rom_delay_us(200);    // Datasheet requires >100 µs; I2C adds ~200 µs
     
     lcd_write_nibble(0x03, 0);
-    vTaskDelay(pdMS_TO_TICKS(1));
+    esp_rom_delay_us(200);
     
     // Switch to 4-bit mode
     lcd_write_nibble(0x02, 0);
-    vTaskDelay(pdMS_TO_TICKS(1));
+    esp_rom_delay_us(200);
     
     // Function set: 4-bit, 2 lines, 5x8 font
     lcd_command(LCD_CMD_FUNCTION_SET);
@@ -173,9 +182,8 @@ esp_err_t lcd_init(void)
     // Display off
     lcd_command(LCD_CMD_DISPLAY_OFF);
     
-    // Clear display
+    // Clear display (lcd_command busy-waits 2 ms for CLEAR internally)
     lcd_command(LCD_CMD_CLEAR);
-    vTaskDelay(pdMS_TO_TICKS(2));
     
     // Entry mode: increment cursor, no shift
     lcd_command(LCD_CMD_ENTRY_MODE);
@@ -192,8 +200,7 @@ esp_err_t lcd_init(void)
 
 void lcd_clear(void)
 {
-    lcd_command(LCD_CMD_CLEAR);
-    vTaskDelay(pdMS_TO_TICKS(2));
+    lcd_command(LCD_CMD_CLEAR);  // lcd_command() already busy-waits 2 ms for CLEAR
     current_col = 0;
     current_row = 0;
 }

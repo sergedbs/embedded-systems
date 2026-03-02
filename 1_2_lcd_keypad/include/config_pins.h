@@ -56,4 +56,11 @@
 #define BUZZER_ERROR_REPEAT         3
 #define BUZZER_REJECT_MS            30      // Short beep for rejected key (digits-only filter)
 
+// LEDC PWM buzzer volume: 0–100 (% duty cycle). Lower = quieter.
+#define BUZZER_VOLUME_PERCENT       10
+#define BUZZER_LEDC_TIMER           LEDC_TIMER_0
+#define BUZZER_LEDC_CHANNEL         LEDC_CHANNEL_0
+#define BUZZER_LEDC_FREQ_HZ         1000    // PWM freq for active buzzer volume control
+#define BUZZER_LEDC_RESOLUTION      LEDC_TIMER_8_BIT   // 0–255 duty range
+
 #endif // CONFIG_PINS_H

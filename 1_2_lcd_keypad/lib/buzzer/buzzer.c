@@ -1,40 +1,60 @@
 #include "buzzer.h"
 #include "config_pins.h"
-#include "driver/gpio.h"
+#include "driver/ledc.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
 
 static const char *TAG = "BUZZER";
 
+// Duty value for "on" state: scale BUZZER_VOLUME_PERCENT (0-100) to 8-bit range
+#define BUZZER_DUTY_ON  ((BUZZER_VOLUME_PERCENT * 255) / 100)
+
 static void buzzer_on(void)
 {
-    gpio_set_level(GPIO_BUZZER, 1);
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, BUZZER_LEDC_CHANNEL, BUZZER_DUTY_ON);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, BUZZER_LEDC_CHANNEL);
 }
 
 static void buzzer_off(void)
 {
-    gpio_set_level(GPIO_BUZZER, 0);
+    ledc_set_duty(LEDC_LOW_SPEED_MODE, BUZZER_LEDC_CHANNEL, 0);
+    ledc_update_duty(LEDC_LOW_SPEED_MODE, BUZZER_LEDC_CHANNEL);
 }
 
 esp_err_t buzzer_init(void)
 {
-    gpio_config_t io_conf = {
-        .pin_bit_mask = (1ULL << GPIO_BUZZER),
-        .mode = GPIO_MODE_OUTPUT,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE,
+    // Configure LEDC timer
+    ledc_timer_config_t timer_conf = {
+        .speed_mode      = LEDC_LOW_SPEED_MODE,
+        .timer_num       = BUZZER_LEDC_TIMER,
+        .duty_resolution = BUZZER_LEDC_RESOLUTION,
+        .freq_hz         = BUZZER_LEDC_FREQ_HZ,
+        .clk_cfg         = LEDC_AUTO_CLK,
     };
-
-    esp_err_t ret = gpio_config(&io_conf);
+    esp_err_t ret = ledc_timer_config(&timer_conf);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to configure buzzer pin: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "ledc_timer_config failed: %s", esp_err_to_name(ret));
         return ret;
     }
 
-    buzzer_off();
-    ESP_LOGI(TAG, "Buzzer initialized");
+    // Configure LEDC channel
+    ledc_channel_config_t ch_conf = {
+        .gpio_num   = GPIO_BUZZER,
+        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .channel    = BUZZER_LEDC_CHANNEL,
+        .timer_sel  = BUZZER_LEDC_TIMER,
+        .duty       = 0,
+        .hpoint     = 0,
+    };
+    ret = ledc_channel_config(&ch_conf);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "ledc_channel_config failed: %s", esp_err_to_name(ret));
+        return ret;
+    }
+
+    ESP_LOGI(TAG, "Buzzer initialized (volume %d%%, duty %d/255)",
+             BUZZER_VOLUME_PERCENT, BUZZER_DUTY_ON);
     return ESP_OK;
 }
 
