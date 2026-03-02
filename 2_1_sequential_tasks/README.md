@@ -4,7 +4,7 @@ ESP-IDF bare‑metal demo for ESP32 that runs three logical tasks cooperatively 
 
 ## Overview
 
-Implements Lab 3.2.1 “Non-Preemptive (bare-metal)” with a simple tick-based scheduler and task table `{recurrence, offset, function pointer, ctx}`. Only one task runs per tick; timing is driven by `esp_timer_get_time()`.
+Implements “Non-Preemptive (bare-metal)” with a simple tick-based scheduler and task table `{recurrence, offset, function pointer, ctx}`. Only one task runs per tick; timing is driven by `esp_timer_get_time()`.
 
 Behaviors:
 

@@ -1,10 +1,10 @@
 # Sequential Tasks (FreeRTOS)
 
-ESP-IDF FreeRTOS demo for ESP32 that runs three preemptive tasks on a 10 ms sampling cadence: button press measurement, stats/blink feedback, and periodic reporting. Uses the same GPIO/button/LED/stats libs as the earlier bare-metal lab; only the scheduling/sync layer is RTOS-based.
+ESP-IDF FreeRTOS demo for ESP32 that runs three preemptive tasks on a 10 ms sampling cadence: button press measurement, stats/blink feedback, and periodic reporting. Uses the same GPIO/button/LED/stats libs as the earlier bare-metal project; only the scheduling/sync layer is RTOS-based.
 
 ## Overview
 
-Implements Lab 2_2 “Preemptive (FreeRTOS)” with three tasks, a binary semaphore, and a mutex for shared data.
+Implements “Preemptive (FreeRTOS)” with three tasks, a binary semaphore, and a mutex for shared data.
 
 Behaviors:
 
@@ -106,7 +106,7 @@ Timing constants and pins live in `include/app_config.h`.
 
 - Preemptive FreeRTOS tasks; timing driven by `vTaskDelayUntil` and `vTaskDelay`.
 - Debounce and blink use timed delays (no busy waits, no ISR required).
-- Shared libs are unchanged from the bare-metal lab; only the RTOS task layer differs.
+- Shared libs are unchanged from the bare-metal project; only the RTOS task layer differs.
 - Cooperative scheduler code remains in `lib/scheduler/` but is not compiled for this target.
 
 ## Serial Output Example
