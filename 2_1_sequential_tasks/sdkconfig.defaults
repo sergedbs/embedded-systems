@@ -1,0 +1,5 @@
+# Disable Task WDT watching of IDLE tasks.
+# This project uses a bare-metal cooperative loop that intentionally
+# busy-waits between ticks, so the FreeRTOS IDLE task never runs on CPU 0.
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0=n
+CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1=n

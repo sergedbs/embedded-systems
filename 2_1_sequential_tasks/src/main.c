@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include "esp_timer.h"
 #include "esp_rom_sys.h"
-#include "esp_task_wdt.h"
 #include "scheduler.h"
 #include "app_config.h"
 #include "app_stats.h"
@@ -21,15 +20,6 @@ void app_main(void) {
 
     event_queue_init(&queue);
     app_stats_reset(&stats);
-
-    // Register main task with WDT to avoid false triggers; keep timeout generous.
-    const esp_task_wdt_config_t wdt_cfg = {
-        .timeout_ms = 10000,    // 10 s
-        .idle_core_mask = 0,    // no idle tasks
-        .trigger_panic = false,
-    };
-    esp_task_wdt_init(&wdt_cfg);
-    esp_task_wdt_add(NULL);
 
     static task_measure_ctx_t measure_ctx;
     static task_stats_ctx_t stats_ctx;
@@ -54,7 +44,6 @@ void app_main(void) {
         if (now >= next_tick_us) {
             scheduler_run_once(&sched);
             next_tick_us += APP_TICK_US;
-            esp_task_wdt_reset();
         } else {
             // light wait to avoid spinning too hard
             uint64_t remain = next_tick_us - now;
