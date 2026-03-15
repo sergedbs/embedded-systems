@@ -3,7 +3,7 @@
 
 #include "driver/gpio.h"
 #include "driver/i2c.h"
-#include "driver/adc.h"
+#include "esp_adc/adc_oneshot.h"
 
 // GPIO mapping
 #define PIN_DHT_DATA         GPIO_NUM_4

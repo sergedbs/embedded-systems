@@ -27,11 +27,14 @@ static uint8_t light_percent_from_raw(uint16_t raw)
         return 0;
     }
 
-    if (raw < LIGHT_RAW_MIN) {
-        raw = LIGHT_RAW_MIN;
-    } else if (raw > LIGHT_RAW_MAX) {
+    if (raw > LIGHT_RAW_MAX) {
         raw = LIGHT_RAW_MAX;
     }
+#if LIGHT_RAW_MIN > 0
+    else if (raw < LIGHT_RAW_MIN) {
+        raw = LIGHT_RAW_MIN;
+    }
+#endif
 
     const uint32_t span = (uint32_t)(LIGHT_RAW_MAX - LIGHT_RAW_MIN);
     uint32_t pct = (uint32_t)(raw - LIGHT_RAW_MIN) * 100U / span;
