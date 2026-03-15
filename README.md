@@ -4,23 +4,23 @@ This repository contains multiple embedded systems projects built on ESP32. Each
 
 ## Projects Overview
 
-### [1. Serial STDIO](1_1_serial_stdio)
+### [1.1 Serial STDIO](1_1_serial_stdio)
 
 A simple ESP32 project that controls an LED through serial commands using standard input and output.
 
-### [2. LCD Keypad Lock System](1_2_lcd_keypad)
+### [1.2 LCD Keypad Lock System](1_2_lcd_keypad)
 
 A PIN-based security lock system using a keypad, LCD display, persistent storage, and simulated hardware in Wokwi.
 
-### [3. Sequential Tasks](2_1_sequential_tasks)
+### [2.1 Sequential Tasks](2_1_sequential_tasks)
 
 A cooperative scheduling project that runs multiple logical tasks without FreeRTOS using a simple tick-based design.
 
-### [4. FreeRTOS Tasks](2_2_freertos)
+### [2.2 FreeRTOS Tasks](2_2_freertos)
 
 A preemptive multitasking version of the task scheduling project implemented with FreeRTOS synchronization primitives.
 
-### [5. Signal Acquisition and Conditioning](3_signal_acq)
+### [3. Signal Acquisition and Conditioning](3_signal_acq)
 
 A sensor-based ESP32 application that reads, filters, processes, and displays real-time environmental and motion data.
 
