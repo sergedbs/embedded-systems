@@ -5,6 +5,7 @@
 #include "driver/gpio.h"
 #include "driver/i2c.h"
 #include "esp_check.h"
+#include "esp_err.h"
 #include "esp_log.h"
 #include "motion/motion_sensor.h"
 #include "system_state.h"
@@ -45,7 +46,7 @@ static esp_err_t init_core_peripherals(void)
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "starting iteration 2 architecture skeleton");
+    ESP_LOGI(TAG, "starting iteration 3 drivers + display path");
 
     system_state_init(&g_app);
     if (g_app.mutex == NULL) {
@@ -58,10 +59,14 @@ void app_main(void)
         return;
     }
 
-    (void)dht11_init();
-    (void)motion_sensor_init();
-    (void)button_handler_init();
-    (void)oled_display_init();
+    ESP_ERROR_CHECK(dht11_init());
+    ESP_ERROR_CHECK(motion_sensor_init());
+    ESP_ERROR_CHECK(button_handler_init());
+
+    const esp_err_t disp_err = oled_display_init();
+    if (disp_err != ESP_OK) {
+        ESP_LOGW(TAG, "display init failed, continuing without OLED: %s", esp_err_to_name(disp_err));
+    }
 
     task_dht_start(&g_app);
     task_motion_start(&g_app);
