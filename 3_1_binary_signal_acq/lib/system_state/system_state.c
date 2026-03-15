@@ -94,7 +94,53 @@ void system_state_set_motion(app_context_t *ctx, bool motion_detected, bool risi
     }
 }
 
-void system_state_set_alerts(app_context_t *ctx, bool temp_alert, bool hum_alert, system_status_t status)
+void system_state_set_light(app_context_t *ctx,
+                            uint16_t raw_value,
+                            uint16_t clamped_value,
+                            uint16_t median_value,
+                            uint16_t avg_value,
+                            uint16_t weighted_value,
+                            uint32_t timestamp_ms,
+                            bool ok)
+{
+    if (ctx == NULL || ctx->mutex == NULL) {
+        return;
+    }
+
+    if (xSemaphoreTake(ctx->mutex, portMAX_DELAY) == pdTRUE) {
+        if (ok) {
+            ctx->state.raw_light_value = raw_value;
+            ctx->state.clamped_light_value = clamped_value;
+            ctx->state.median_light_value = median_value;
+            ctx->state.avg_light_value = avg_value;
+            ctx->state.weighted_light_value = weighted_value;
+            ctx->state.last_light_update_ms = timestamp_ms;
+        } else {
+            ctx->state.light_read_error_count++;
+        }
+        xSemaphoreGive(ctx->mutex);
+    }
+}
+
+void system_state_set_light_alert(app_context_t *ctx, bool light_alert, bool light_led_on)
+{
+    if (ctx == NULL || ctx->mutex == NULL) {
+        return;
+    }
+
+    if (xSemaphoreTake(ctx->mutex, portMAX_DELAY) == pdTRUE) {
+        ctx->state.light_alert = light_alert;
+        ctx->state.light_led_on = light_led_on;
+        xSemaphoreGive(ctx->mutex);
+    }
+}
+
+void system_state_set_alerts(app_context_t *ctx,
+                             bool temp_alert,
+                             bool hum_alert,
+                             bool light_alert,
+                             bool light_led_on,
+                             system_status_t status)
 {
     if (ctx == NULL || ctx->mutex == NULL) {
         return;
@@ -103,6 +149,8 @@ void system_state_set_alerts(app_context_t *ctx, bool temp_alert, bool hum_alert
     if (xSemaphoreTake(ctx->mutex, portMAX_DELAY) == pdTRUE) {
         ctx->state.temp_alert = temp_alert;
         ctx->state.hum_alert = hum_alert;
+        ctx->state.light_alert = light_alert;
+        ctx->state.light_led_on = light_led_on;
         ctx->state.status = status;
         xSemaphoreGive(ctx->mutex);
     }

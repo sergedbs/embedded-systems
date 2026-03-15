@@ -7,11 +7,13 @@
 #include "esp_check.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "ldr/ldr_sensor.h"
 #include "motion/motion_sensor.h"
 #include "system_state.h"
 #include "tasks/task_button.h"
 #include "tasks/task_dht.h"
 #include "tasks/task_display.h"
+#include "tasks/task_light.h"
 #include "tasks/task_motion.h"
 #include "tasks/task_processing.h"
 
@@ -23,12 +25,13 @@ static esp_err_t init_core_peripherals(void)
     gpio_config_t led_cfg = {
         .intr_type = GPIO_INTR_DISABLE,
         .mode = GPIO_MODE_OUTPUT,
-        .pin_bit_mask = (1ULL << PIN_LED_MOTION),
+        .pin_bit_mask = (1ULL << PIN_LED_MOTION) | (1ULL << PIN_LED_LIGHT),
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .pull_up_en = GPIO_PULLUP_DISABLE,
     };
     ESP_RETURN_ON_ERROR(gpio_config(&led_cfg), TAG, "led init failed");
     ESP_RETURN_ON_ERROR(gpio_set_level(PIN_LED_MOTION, 0), TAG, "led off failed");
+    ESP_RETURN_ON_ERROR(gpio_set_level(PIN_LED_LIGHT, 0), TAG, "light led off failed");
 
     const i2c_config_t i2c_cfg = {
         .mode = I2C_MODE_MASTER,
@@ -46,7 +49,7 @@ static esp_err_t init_core_peripherals(void)
 
 void app_main(void)
 {
-    ESP_LOGI(TAG, "starting iteration 3 drivers + display path");
+    ESP_LOGI(TAG, "starting binary+analog acquisition pipeline");
 
     system_state_init(&g_app);
     if (g_app.mutex == NULL) {
@@ -61,6 +64,7 @@ void app_main(void)
 
     ESP_ERROR_CHECK(dht11_init());
     ESP_ERROR_CHECK(motion_sensor_init());
+    ESP_ERROR_CHECK(ldr_sensor_init());
     ESP_ERROR_CHECK(button_handler_init());
 
     const esp_err_t disp_err = oled_display_init();
@@ -70,6 +74,7 @@ void app_main(void)
 
     if (!task_dht_start(&g_app) ||
         !task_motion_start(&g_app) ||
+        !task_light_start(&g_app) ||
         !task_button_start(&g_app) ||
         !task_processing_start(&g_app) ||
         !task_display_start(&g_app)) {

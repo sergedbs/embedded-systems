@@ -6,9 +6,11 @@ ESP32 signal acquisition and conditioning project built with ESP-IDF, FreeRTOS, 
 
 - Periodic temperature/humidity acquisition
 - Motion detection with LED indication
+- Light acquisition from LDR (ADC) with filtering
 - Button-triggered system reset
 - Threshold + hysteresis alert logic
   - Temperature alert ON requires 2 consecutive valid high samples
+  - Light alert uses filtered threshold + hysteresis
 - OLED status output over I2C
 
 ## Hardware
@@ -27,14 +29,17 @@ ESP32 signal acquisition and conditioning project built with ESP-IDF, FreeRTOS, 
 - `GPIO18` -> PIR OUT
 - `GPIO19` -> Button input (active-low, internal pull-up)
 - `GPIO23` -> Motion LED output
+- `GPIO25` -> Light LED output
 - `GPIO21` -> I2C SDA (OLED)
 - `GPIO22` -> I2C SCL (OLED)
+- `GPIO34` -> LDR analog input (ADC1_CH6)
 
 ## Architecture
 
 ```txt
 TaskDHT (1.5s) -> updates temperature/humidity
 TaskMotion (50ms) -> filtered motion + LED + event counter
+TaskLightSensor (50ms) -> ADC read + clamp + filters + light LED
 TaskButton (20ms) -> debounced reset input
 TaskProcessing (100ms) -> thresholds/hysteresis -> status
 TaskDisplay (300ms) -> OLED + serial snapshot
@@ -44,7 +49,7 @@ Shared state is protected with a mutex and exchanged through `system_state` APIs
 
 ## Task Priority Rationale
 
-- Priority 4: motion, button (fast reaction path)
+- Priority 4: motion, light, button (fast reaction path)
 - Priority 3: dht, processing
 - Priority 2: display
 
@@ -70,6 +75,7 @@ pio device monitor
 5. Run monitor and validate:
    - DHT values update every ~1.5s
    - PIR toggles LED within 100ms
+   - LDR filtered value tracks light changes and toggles light LED
    - Single button press increments reset counter once
    - OLED shows `TEMP`, `HUM`, `MOTION`, `SYS`
 

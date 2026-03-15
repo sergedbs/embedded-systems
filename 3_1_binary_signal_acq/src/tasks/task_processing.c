@@ -19,6 +19,8 @@ static void task_processing_fn(void *arg)
         if (system_state_snapshot(ctx, &s)) {
             bool temp_alert = s.temp_alert;
             bool hum_alert = s.hum_alert;
+            const bool light_alert = s.light_alert;
+            const bool light_led_on = s.light_led_on;
             const bool have_new_dht_sample = (s.last_sensor_update_ms != last_seen_dht_update_ms);
 
             if (temp_alert && s.temperature_c <= TEMP_ALERT_OFF_C) {
@@ -49,13 +51,13 @@ static void task_processing_fn(void *arg)
             }
 
             system_status_t status = SYSTEM_STATUS_OK;
-            if (temp_alert || hum_alert) {
+            if (temp_alert || hum_alert || light_alert) {
                 status = SYSTEM_STATUS_ALERT;
             } else if (s.motion_detected) {
                 status = SYSTEM_STATUS_WARN;
             }
 
-            system_state_set_alerts(ctx, temp_alert, hum_alert, status);
+            system_state_set_alerts(ctx, temp_alert, hum_alert, light_alert, light_led_on, status);
         }
 
         vTaskDelay(pdMS_TO_TICKS(PROCESSING_POLL_MS));

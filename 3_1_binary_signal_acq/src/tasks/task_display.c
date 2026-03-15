@@ -22,12 +22,14 @@ static void task_display_fn(void *arg)
                 ESP_LOGW(TAG, "OLED not ready, render skipped");
                 warned_no_display = true;
             }
-            ESP_LOGI(TAG, "T=%.1fC H=%.1f%% M=%d A(T/H)=%d/%d R=%lu",
+            ESP_LOGI(TAG, "T=%.1fC H=%.1f%% M=%d L=%u A(T/H/L)=%d/%d/%d R=%lu",
                      s.temperature_c,
                      s.humidity_pct,
                      s.motion_detected,
+                     (unsigned)s.weighted_light_value,
                      s.temp_alert,
                      s.hum_alert,
+                     s.light_alert,
                      (unsigned long)s.reset_count);
         }
 

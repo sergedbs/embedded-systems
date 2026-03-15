@@ -3,12 +3,15 @@
 
 #include "driver/gpio.h"
 #include "driver/i2c.h"
+#include "driver/adc.h"
 
 // GPIO mapping
 #define PIN_DHT_DATA         GPIO_NUM_4
 #define PIN_PIR_OUT          GPIO_NUM_18
 #define PIN_BUTTON_RESET     GPIO_NUM_19
 #define PIN_LED_MOTION       GPIO_NUM_23
+#define PIN_LED_LIGHT        GPIO_NUM_25
+#define PIN_LDR_ADC          GPIO_NUM_34
 
 // I2C / OLED
 #define I2C_PORT             I2C_NUM_0
@@ -21,6 +24,7 @@
 #define DHT_SAMPLE_MS        1500
 #define MOTION_POLL_MS       50
 #define MOTION_STABLE_SAMPLES 2
+#define LIGHT_SAMPLE_MS      50
 #define BUTTON_POLL_MS       20
 #define BUTTON_DEBOUNCE_MS   40
 #define DISPLAY_REFRESH_MS   300
@@ -32,15 +36,26 @@
 #define TEMP_ALERT_ON_CONFIRM_SAMPLES 2
 #define HUM_ALERT_ON_PCT     70.0f
 #define HUM_ALERT_OFF_PCT    65.0f
+#define LIGHT_ALERT_ON_RAW   2600U
+#define LIGHT_ALERT_OFF_RAW  2200U
+#define LIGHT_RAW_MIN        0U
+#define LIGHT_RAW_MAX        4095U
+
+// ADC (ESP32 ADC1, GPIO34 -> channel 6)
+#define LDR_ADC_UNIT         ADC_UNIT_1
+#define LDR_ADC_CHANNEL      ADC_CHANNEL_6
+#define LDR_ADC_ATTEN        ADC_ATTEN_DB_12
+#define LDR_ADC_BITWIDTH     ADC_BITWIDTH_12
 
 // Task configuration
 #define TASK_STACK_DEFAULT   3072
 // Priority rationale:
-// - Motion and button are highest to keep event reaction under 100 ms.
+// - Motion, light, and button are highest to keep event reaction under 100 ms.
 // - DHT/processing are mid-priority periodic tasks.
 // - Display is lowest so UI refresh never blocks input/sensing.
 #define TASK_PRIO_DHT        3
 #define TASK_PRIO_MOTION     4
+#define TASK_PRIO_LIGHT      4
 #define TASK_PRIO_BUTTON     4
 #define TASK_PRIO_PROCESS    3
 #define TASK_PRIO_DISPLAY    2

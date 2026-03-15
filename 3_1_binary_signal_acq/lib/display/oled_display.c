@@ -180,6 +180,7 @@ esp_err_t oled_display_render(const system_state_t *snapshot)
     char l4[22];
 
     const char *motion = snapshot->motion_detected ? "YES" : "NO";
+    const char *light = snapshot->light_alert ? "ON" : "OFF";
     const char *status = "OK";
     if (snapshot->status == SYSTEM_STATUS_WARN) {
         status = "WARN";
@@ -189,7 +190,7 @@ esp_err_t oled_display_render(const system_state_t *snapshot)
 
     snprintf(l1, sizeof(l1), "TEMP:%5.1fC", snapshot->temperature_c);
     snprintf(l2, sizeof(l2), "HUM :%5.1f%%", snapshot->humidity_pct);
-    snprintf(l3, sizeof(l3), "MOTION:%s", motion);
+    snprintf(l3, sizeof(l3), "M:%s L:%s %4u", motion, light, (unsigned)snapshot->weighted_light_value);
     snprintf(l4, sizeof(l4), "SYS:%s R:%lu", status, (unsigned long)snapshot->reset_count);
 
     oled_clear_fb();
