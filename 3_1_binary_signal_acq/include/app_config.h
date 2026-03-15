@@ -27,6 +27,7 @@
 #define LIGHT_SAMPLE_MS      50
 #define BUTTON_POLL_MS       20
 #define BUTTON_DEBOUNCE_MS   40
+#define RESET_HOLD_MS        800
 #define DISPLAY_REFRESH_MS   300
 #define PROCESSING_POLL_MS   100
 
@@ -36,8 +37,10 @@
 #define TEMP_ALERT_ON_CONFIRM_SAMPLES 2
 #define HUM_ALERT_ON_PCT     70.0f
 #define HUM_ALERT_OFF_PCT    65.0f
-#define LIGHT_ALERT_ON_RAW   2600U
-#define LIGHT_ALERT_OFF_RAW  2200U
+// LDR direction: 1 means brighter light -> lower ADC reading (Wokwi/common modules).
+#define LIGHT_ADC_INVERTED   1
+#define LIGHT_ALERT_ON_RAW   2200U
+#define LIGHT_ALERT_OFF_RAW  2600U
 #define LIGHT_RAW_MIN        0U
 #define LIGHT_RAW_MAX        4095U
 

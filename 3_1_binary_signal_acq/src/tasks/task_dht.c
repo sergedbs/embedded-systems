@@ -13,6 +13,15 @@ static void task_dht_fn(void *arg)
     vTaskDelay(pdMS_TO_TICKS(1000));
 
     while (true) {
+        system_state_t snapshot = {0};
+        if (system_state_snapshot(ctx, &snapshot)) {
+            const uint32_t now = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+            if (now < snapshot.reset_hold_until_ms) {
+                vTaskDelay(pdMS_TO_TICKS(DHT_SAMPLE_MS));
+                continue;
+            }
+        }
+
         float temp = 0.0f;
         float hum = 0.0f;
         const esp_err_t err = dht11_read(&temp, &hum);

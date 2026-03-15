@@ -13,10 +13,18 @@ static void task_processing_fn(void *arg)
     app_context_t *ctx = (app_context_t *)arg;
     system_state_t s = {0};
     uint32_t last_seen_dht_update_ms = 0;
+    uint32_t last_reset_count = 0;
     uint8_t temp_high_confirm_count = 0;
 
     while (true) {
         if (system_state_snapshot(ctx, &s)) {
+            if (s.reset_count != last_reset_count) {
+                // Hard reset semantics: restart local processing state.
+                last_seen_dht_update_ms = 0;
+                temp_high_confirm_count = 0;
+                last_reset_count = s.reset_count;
+            }
+
             bool temp_alert = s.temp_alert;
             bool hum_alert = s.hum_alert;
             const bool light_alert = s.light_alert;

@@ -17,11 +17,36 @@ static void task_motion_fn(void *arg)
     bool stable_motion = motion_sensor_read_raw();
     bool candidate_motion = stable_motion;
     uint8_t candidate_count = 0;
+    uint32_t last_reset_count = 0;
 
     gpio_set_level(PIN_LED_MOTION, stable_motion ? 1 : 0);
     system_state_set_motion(ctx, stable_motion, false);
 
     while (true) {
+        system_state_t snapshot = {0};
+        if (system_state_snapshot(ctx, &snapshot) && snapshot.reset_count != last_reset_count) {
+            // Hard reset semantics: clear motion state and force re-acquisition.
+            stable_motion = false;
+            candidate_motion = false;
+            candidate_count = 0;
+            gpio_set_level(PIN_LED_MOTION, 0);
+            system_state_set_motion(ctx, false, false);
+            last_reset_count = snapshot.reset_count;
+        }
+
+        if (system_state_snapshot(ctx, &snapshot)) {
+            const uint32_t now = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+            if (now < snapshot.reset_hold_until_ms) {
+                stable_motion = false;
+                candidate_motion = false;
+                candidate_count = 0;
+                gpio_set_level(PIN_LED_MOTION, 0);
+                system_state_set_motion(ctx, false, false);
+                vTaskDelay(pdMS_TO_TICKS(MOTION_POLL_MS));
+                continue;
+            }
+        }
+
         const bool raw_motion = motion_sensor_read_raw();
 
         if (raw_motion != stable_motion) {

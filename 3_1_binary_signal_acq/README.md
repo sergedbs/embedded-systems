@@ -10,7 +10,7 @@ ESP32 signal acquisition and conditioning project built with ESP-IDF, FreeRTOS, 
 - Button-triggered system reset
 - Threshold + hysteresis alert logic
   - Temperature alert ON requires 2 consecutive valid high samples
-  - Light alert uses filtered threshold + hysteresis
+  - Light alert uses filtered threshold + hysteresis (inverted ADC direction)
 - OLED status output over I2C
 
 ## Hardware
@@ -65,6 +65,8 @@ pio device monitor
 
 - `diagram.json` and `wokwi.toml` are configured for this project
 - DHT defaults in simulation: `24 C`, `52%`
+- Light display uses filtered ADC mapped to brightness percent (`0..100%`), not lux
+- Button reset uses hard-reset semantics with short hold window before reacquisition
 
 ## Real ESP32 Pre-Flash Checklist
 

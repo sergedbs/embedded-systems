@@ -21,6 +21,26 @@ static const char *TAG = "oled_display";
 static uint8_t s_fb[OLED_FB_SIZE];
 static bool s_ready = false;
 
+static uint8_t light_percent_from_raw(uint16_t raw)
+{
+    if (LIGHT_RAW_MAX <= LIGHT_RAW_MIN) {
+        return 0;
+    }
+
+    if (raw < LIGHT_RAW_MIN) {
+        raw = LIGHT_RAW_MIN;
+    } else if (raw > LIGHT_RAW_MAX) {
+        raw = LIGHT_RAW_MAX;
+    }
+
+    const uint32_t span = (uint32_t)(LIGHT_RAW_MAX - LIGHT_RAW_MIN);
+    uint32_t pct = (uint32_t)(raw - LIGHT_RAW_MIN) * 100U / span;
+#if LIGHT_ADC_INVERTED
+    pct = 100U - pct;
+#endif
+    return (uint8_t)pct;
+}
+
 static esp_err_t oled_write(const uint8_t *data, size_t len)
 {
     return i2c_master_write_to_device(I2C_PORT, OLED_I2C_ADDR, data, len, pdMS_TO_TICKS(OLED_I2C_TIMEOUT_MS));
@@ -181,8 +201,13 @@ esp_err_t oled_display_render(const system_state_t *snapshot)
 
     const char *motion = snapshot->motion_detected ? "YES" : "NO";
     const char *light = snapshot->light_alert ? "ON" : "OFF";
+    const uint32_t now = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+    const bool in_reset_hold = now < snapshot->reset_hold_until_ms;
+    const uint8_t light_pct = in_reset_hold ? 0U : light_percent_from_raw(snapshot->weighted_light_value);
     const char *status = "OK";
-    if (snapshot->status == SYSTEM_STATUS_WARN) {
+    if (in_reset_hold) {
+        status = "RST";
+    } else if (snapshot->status == SYSTEM_STATUS_WARN) {
         status = "WARN";
     } else if (snapshot->status == SYSTEM_STATUS_ALERT) {
         status = "ALERT";
@@ -190,7 +215,7 @@ esp_err_t oled_display_render(const system_state_t *snapshot)
 
     snprintf(l1, sizeof(l1), "TEMP:%5.1fC", snapshot->temperature_c);
     snprintf(l2, sizeof(l2), "HUM :%5.1f%%", snapshot->humidity_pct);
-    snprintf(l3, sizeof(l3), "M:%s L:%s %4u", motion, light, (unsigned)snapshot->weighted_light_value);
+    snprintf(l3, sizeof(l3), "M:%s L:%s %3u%%", motion, light, (unsigned)light_pct);
     snprintf(l4, sizeof(l4), "SYS:%s R:%lu", status, (unsigned long)snapshot->reset_count);
 
     oled_clear_fb();

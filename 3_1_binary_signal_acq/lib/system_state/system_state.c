@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "app_config.h"
 #include "esp_log.h"
 #include "freertos/task.h"
 
@@ -37,10 +38,11 @@ void system_state_reset(app_context_t *ctx)
 
     if (xSemaphoreTake(ctx->mutex, portMAX_DELAY) == pdTRUE) {
         const uint32_t resets = ctx->state.reset_count + 1;
+        const uint32_t now = now_ms();
         memset(&ctx->state, 0, sizeof(ctx->state));
         ctx->state.status = SYSTEM_STATUS_OK;
         ctx->state.reset_count = resets;
-        ctx->state.last_sensor_update_ms = now_ms();
+        ctx->state.reset_hold_until_ms = now + RESET_HOLD_MS;
         xSemaphoreGive(ctx->mutex);
     }
 }

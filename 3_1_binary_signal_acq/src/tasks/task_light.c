@@ -13,6 +13,24 @@
 
 static const char *TAG = "task_light";
 
+static bool light_threshold_on(uint16_t value)
+{
+#if LIGHT_ADC_INVERTED
+    return value <= LIGHT_ALERT_ON_RAW;
+#else
+    return value >= LIGHT_ALERT_ON_RAW;
+#endif
+}
+
+static bool light_threshold_off(uint16_t value)
+{
+#if LIGHT_ADC_INVERTED
+    return value >= LIGHT_ALERT_OFF_RAW;
+#else
+    return value <= LIGHT_ALERT_OFF_RAW;
+#endif
+}
+
 static void task_light_fn(void *arg)
 {
     app_context_t *ctx = (app_context_t *)arg;
@@ -39,6 +57,21 @@ static void task_light_fn(void *arg)
             last_reset_count = snapshot.reset_count;
         }
 
+        if (system_state_snapshot(ctx, &snapshot)) {
+            const uint32_t now = (uint32_t)(xTaskGetTickCount() * portTICK_PERIOD_MS);
+            if (now < snapshot.reset_hold_until_ms) {
+                filter_median3_reset(&f_med);
+                filter_sma3_reset(&f_sma);
+                filter_wma4_reset(&f_wma);
+                light_alert = false;
+                gpio_set_level(PIN_LED_LIGHT, 0);
+                system_state_set_light_alert(ctx, false, false);
+                system_state_set_light(ctx, 0, 0, 0, 0, 0, now, true);
+                vTaskDelay(pdMS_TO_TICKS(LIGHT_SAMPLE_MS));
+                continue;
+            }
+        }
+
         uint16_t raw = 0;
         const esp_err_t err = ldr_sensor_read_raw(&raw);
 
@@ -55,9 +88,9 @@ static void task_light_fn(void *arg)
         const uint16_t avg = filter_sma3_apply(&f_sma, median);
         const uint16_t weighted = filter_wma4_apply(&f_wma, avg);
 
-        if (!light_alert && weighted >= LIGHT_ALERT_ON_RAW) {
+        if (!light_alert && light_threshold_on(weighted)) {
             light_alert = true;
-        } else if (light_alert && weighted <= LIGHT_ALERT_OFF_RAW) {
+        } else if (light_alert && light_threshold_off(weighted)) {
             light_alert = false;
         }
 

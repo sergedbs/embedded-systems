@@ -23,6 +23,7 @@ typedef struct {
 
     uint32_t last_sensor_update_ms;
     uint32_t last_light_update_ms;
+    uint32_t reset_hold_until_ms;
 
     uint16_t raw_light_value;
     uint16_t clamped_light_value;
