@@ -10,6 +10,7 @@ static const char *TAG = "task_dht";
 static void task_dht_fn(void *arg)
 {
     app_context_t *ctx = (app_context_t *)arg;
+    vTaskDelay(pdMS_TO_TICKS(1000));
 
     while (true) {
         float temp = 0.0f;
@@ -27,7 +28,12 @@ static void task_dht_fn(void *arg)
     }
 }
 
-void task_dht_start(app_context_t *ctx)
+bool task_dht_start(app_context_t *ctx)
 {
-    xTaskCreate(task_dht_fn, "TaskDHT", TASK_STACK_DEFAULT, ctx, TASK_PRIO_DHT, NULL);
+    const BaseType_t rc = xTaskCreate(task_dht_fn, "TaskDHT", TASK_STACK_DEFAULT, ctx, TASK_PRIO_DHT, NULL);
+    if (rc != pdPASS) {
+        ESP_LOGE(TAG, "failed to create TaskDHT");
+        return false;
+    }
+    return true;
 }

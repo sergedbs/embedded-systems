@@ -20,6 +20,7 @@
 // Task timing (ms)
 #define DHT_SAMPLE_MS        1500
 #define MOTION_POLL_MS       50
+#define MOTION_STABLE_SAMPLES 2
 #define BUTTON_POLL_MS       20
 #define BUTTON_DEBOUNCE_MS   40
 #define DISPLAY_REFRESH_MS   300
@@ -28,11 +29,16 @@
 // Alert thresholds + hysteresis
 #define TEMP_ALERT_ON_C      26.0f
 #define TEMP_ALERT_OFF_C     24.0f
+#define TEMP_ALERT_ON_CONFIRM_SAMPLES 2
 #define HUM_ALERT_ON_PCT     70.0f
 #define HUM_ALERT_OFF_PCT    65.0f
 
 // Task configuration
 #define TASK_STACK_DEFAULT   3072
+// Priority rationale:
+// - Motion and button are highest to keep event reaction under 100 ms.
+// - DHT/processing are mid-priority periodic tasks.
+// - Display is lowest so UI refresh never blocks input/sensing.
 #define TASK_PRIO_DHT        3
 #define TASK_PRIO_MOTION     4
 #define TASK_PRIO_BUTTON     4

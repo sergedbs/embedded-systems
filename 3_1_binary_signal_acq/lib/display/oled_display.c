@@ -200,3 +200,8 @@ esp_err_t oled_display_render(const system_state_t *snapshot)
 
     return oled_flush();
 }
+
+bool oled_display_is_ready(void)
+{
+    return s_ready;
+}

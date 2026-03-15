@@ -68,11 +68,14 @@ void app_main(void)
         ESP_LOGW(TAG, "display init failed, continuing without OLED: %s", esp_err_to_name(disp_err));
     }
 
-    task_dht_start(&g_app);
-    task_motion_start(&g_app);
-    task_button_start(&g_app);
-    task_processing_start(&g_app);
-    task_display_start(&g_app);
+    if (!task_dht_start(&g_app) ||
+        !task_motion_start(&g_app) ||
+        !task_button_start(&g_app) ||
+        !task_processing_start(&g_app) ||
+        !task_display_start(&g_app)) {
+        ESP_LOGE(TAG, "task start failure");
+        return;
+    }
 
     ESP_LOGI(TAG, "all tasks started");
 }

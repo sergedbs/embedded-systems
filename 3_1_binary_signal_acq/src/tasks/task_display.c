@@ -11,10 +11,17 @@ static void task_display_fn(void *arg)
 {
     app_context_t *ctx = (app_context_t *)arg;
     system_state_t s = {0};
+    bool warned_no_display = false;
 
     while (true) {
         if (system_state_snapshot(ctx, &s)) {
-            (void)oled_display_render(&s);
+            if (oled_display_is_ready()) {
+                (void)oled_display_render(&s);
+                warned_no_display = false;
+            } else if (!warned_no_display) {
+                ESP_LOGW(TAG, "OLED not ready, render skipped");
+                warned_no_display = true;
+            }
             ESP_LOGI(TAG, "T=%.1fC H=%.1f%% M=%d A(T/H)=%d/%d R=%lu",
                      s.temperature_c,
                      s.humidity_pct,
@@ -28,7 +35,12 @@ static void task_display_fn(void *arg)
     }
 }
 
-void task_display_start(app_context_t *ctx)
+bool task_display_start(app_context_t *ctx)
 {
-    xTaskCreate(task_display_fn, "TaskDisplay", TASK_STACK_DEFAULT, ctx, TASK_PRIO_DISPLAY, NULL);
+    const BaseType_t rc = xTaskCreate(task_display_fn, "TaskDisplay", TASK_STACK_DEFAULT, ctx, TASK_PRIO_DISPLAY, NULL);
+    if (rc != pdPASS) {
+        ESP_LOGE(TAG, "failed to create TaskDisplay");
+        return false;
+    }
+    return true;
 }
