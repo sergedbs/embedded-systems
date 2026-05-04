@@ -1,6 +1,6 @@
 # EMBEDDED SYSTEMS PROJECTS
 
-This repository contains multiple embedded systems projects built on ESP32. Each project explores a different embedded concept, from basic serial I/O and peripheral control to task scheduling, signal acquisition, and real-time processing.
+This repository contains multiple embedded systems projects built on ESP32. Each project explores a different embedded concept, from basic serial I/O and peripheral control to task scheduling, signal acquisition, actuator control, and automatic control.
 
 ## Projects Overview
 
@@ -24,6 +24,14 @@ A preemptive multitasking version of the task scheduling project implemented wit
 
 A sensor-based ESP32 application that reads, filters, processes, and displays real-time environmental and motion data.
 
+### [4. Actuator Control and Power Conversion](4_actuators)
+
+An actuator-control project with a relay output, signed PWM motor control, command conditioning, LCD status output, and serial diagnostics.
+
+### [5. Automatic Temperature Control](5_auto_control)
+
+A closed-loop temperature-control project using DHT22 acquisition, ON-OFF relay control with hysteresis, PID PWM control, LCD status output, and serial commands.
+
 ## Repository Structure
 
 ```text
@@ -33,6 +41,8 @@ embedded-systems
 ├── 2_1_sequential_tasks
 ├── 2_2_freertos
 ├── 3_signal_acq
+├── 4_actuators
+├── 5_auto_control
 ├── LICENSE
 └── README.md
 ```
