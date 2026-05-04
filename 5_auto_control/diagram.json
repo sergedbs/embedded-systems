@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "author": "Sergiu",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-v1",
+      "id": "esp",
+      "top": 72,
+      "left": 56,
+      "attrs": { "builder": "esp-idf" }
+    },
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd1",
+      "top": -60.8,
+      "left": 274.4,
+      "attrs": { "pins": "i2c" }
+    },
+    {
+      "type": "wokwi-dht22",
+      "id": "dht1",
+      "top": 99,
+      "left": 363.9,
+      "rotate": 90,
+      "attrs": { "temperature": "24.0", "humidity": "45.0" }
+    },
+    { "type": "wokwi-relay-module", "id": "relay1", "top": 230.6, "left": 336, "attrs": {} },
+    {
+      "type": "wokwi-led",
+      "id": "relay_load_led",
+      "top": 198,
+      "left": 570.2,
+      "attrs": { "color": "yellow", "label": "Relay Heater", "flip": "1" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_relay_load",
+      "top": 263.15,
+      "left": 489.6,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pid_led",
+      "top": 102,
+      "left": -111.4,
+      "attrs": { "color": "red", "label": "PID PWM Heater" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_pid",
+      "top": 157.55,
+      "left": -57.6,
+      "attrs": { "value": "220" }
+    }
+  ],
+  "connections": [
+    [ "esp:TX0", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX0", "$serialMonitor:TX", "", [] ],
+    [ "esp:D21", "lcd1:SDA", "gold", [ "h82.71", "v-199.72" ] ],
+    [ "esp:D22", "lcd1:SCL", "blue", [ "h92.31", "v-161.42" ] ],
+    [ "esp:VIN", "lcd1:VCC", "red", [ "h-22.4", "v-305.12" ] ],
+    [ "esp:GND.1", "lcd1:GND", "black", [ "h73.11", "v-305.12" ] ],
+    [ "dht1:SDA", "esp:D18", "green", [ "h0" ] ],
+    [ "esp:GND.1", "dht1:GND", "black", [ "h140.31", "v-45.92" ] ],
+    [ "esp:VIN", "relay1:VCC", "red", [ "h-12.8", "v59.68", "h192", "v-38.4" ] ],
+    [ "esp:GND.1", "relay1:GND", "black", [ "h101.91", "v2.08" ] ],
+    [ "esp:D23", "relay1:IN", "orange", [ "h25.11", "v174.88" ] ],
+    [ "esp:D25", "r_pid:2", "red", [ "h0" ] ],
+    [ "r_pid:1", "pid_led:A", "red", [ "v0", "h-28.8" ] ],
+    [ "esp:GND.2", "pid_led:C", "black", [ "h0" ] ],
+    [ "relay1:NO", "r_relay_load:1", "orange", [ "h0" ] ],
+    [ "r_relay_load:2", "relay_load_led:A", "orange", [ "v0", "h37.2" ] ],
+    [ "esp:GND.1", "relay_load_led:C", "black", [ "h63.51", "v78.88", "h374.4" ] ],
+    [ "esp:VIN", "relay1:COM", "red", [ "h-32", "v78.88", "h441.6", "v-46.6" ] ],
+    [ "esp:3V3", "dht1:VCC", "red", [ "v2.08", "h121.11", "v-86.4" ] ]
+  ],
+  "dependencies": {}
+}
