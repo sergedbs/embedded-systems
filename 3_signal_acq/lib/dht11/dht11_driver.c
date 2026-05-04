@@ -21,6 +21,14 @@
 
 static portMUX_TYPE s_dht_mux = portMUX_INITIALIZER_UNLOCKED;
 
+static bool dht_values_in_range(float temperature_c, float humidity_pct)
+{
+    return temperature_c >= DHT_TEMP_MIN_C &&
+           temperature_c <= DHT_TEMP_MAX_C &&
+           humidity_pct >= DHT_HUM_MIN_PCT &&
+           humidity_pct <= DHT_HUM_MAX_PCT;
+}
+
 static esp_err_t wait_for_level(int level, uint32_t timeout_us)
 {
     const int64_t start = esp_timer_get_time();
@@ -111,24 +119,37 @@ esp_err_t dht11_read(float *temperature_c, float *humidity_pct)
             continue;
         }
 
-        // DHT11: integer bytes in data[0]/data[2], decimals usually 0.
-        // DHT22 compatibility for simulation: packed 16-bit values with 0.1 resolution.
-        const bool looks_like_dht22 = (data[1] != 0U) || (data[3] != 0U);
+        // Real DHT11 frames may use small decimal bytes (for example 27.1C -> data[3] = 1),
+        // so "non-zero decimal byte" is too weak as a DHT22 detector.
+        const bool looks_like_dht22 = (data[1] > 9U) || (data[3] > 9U);
+
+        float decoded_hum = 0.0f;
+        float decoded_temp = 0.0f;
 
         if (looks_like_dht22) {
             const uint16_t raw_h = (uint16_t)((data[0] << 8) | data[1]);
-            uint16_t raw_t = (uint16_t)(((data[2] & 0x7F) << 8) | data[3]);
-            float temp = (float)raw_t / 10.0f;
-            if (data[2] & 0x80) {
-                temp = -temp;
-            }
+            const uint16_t raw_t = (uint16_t)(((data[2] & 0x7F) << 8) | data[3]);
 
-            *humidity_pct = (float)raw_h / 10.0f;
-            *temperature_c = temp;
+            decoded_hum = (float)raw_h / 10.0f;
+            decoded_temp = (float)raw_t / 10.0f;
+            if (data[2] & 0x80) {
+                decoded_temp = -decoded_temp;
+            }
         } else {
-            *humidity_pct = (float)data[0];
-            *temperature_c = (float)data[2];
+            decoded_hum = (float)data[0] + ((float)data[1] / 10.0f);
+            decoded_temp = (float)data[2] + ((float)data[3] / 10.0f);
         }
+
+        if (!dht_values_in_range(decoded_temp, decoded_hum)) {
+            last_err = ESP_ERR_INVALID_RESPONSE;
+            if (attempt < DHT_READ_RETRIES) {
+                vTaskDelay(pdMS_TO_TICKS(DHT_RETRY_DELAY_MS));
+            }
+            continue;
+        }
+
+        *humidity_pct = decoded_hum;
+        *temperature_c = decoded_temp;
 
         return ESP_OK;
     }

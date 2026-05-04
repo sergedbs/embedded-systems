@@ -9,21 +9,21 @@ static const char *TAG = "task_display";
 
 static uint8_t light_percent_from_raw(uint16_t raw)
 {
-    if (LIGHT_RAW_MAX <= LIGHT_RAW_MIN) {
+    if (LIGHT_PCT_MAX_RAW <= LIGHT_PCT_MIN_RAW) {
         return 0;
     }
 
-    if (raw > LIGHT_RAW_MAX) {
-        raw = LIGHT_RAW_MAX;
+    if (raw > LIGHT_PCT_MAX_RAW) {
+        raw = LIGHT_PCT_MAX_RAW;
     }
-#if LIGHT_RAW_MIN > 0
-    else if (raw < LIGHT_RAW_MIN) {
-        raw = LIGHT_RAW_MIN;
+#if LIGHT_PCT_MIN_RAW > 0
+    else if (raw < LIGHT_PCT_MIN_RAW) {
+        raw = LIGHT_PCT_MIN_RAW;
     }
 #endif
 
-    const uint32_t span = (uint32_t)(LIGHT_RAW_MAX - LIGHT_RAW_MIN);
-    uint32_t pct = (uint32_t)(raw - LIGHT_RAW_MIN) * 100U / span;
+    const uint32_t span = (uint32_t)(LIGHT_PCT_MAX_RAW - LIGHT_PCT_MIN_RAW);
+    uint32_t pct = (uint32_t)(raw - LIGHT_PCT_MIN_RAW) * 100U / span;
 #if LIGHT_ADC_INVERTED
     pct = 100U - pct;
 #endif
@@ -48,10 +48,14 @@ static void task_display_fn(void *arg)
                 ESP_LOGW(TAG, "OLED not ready, render skipped");
                 warned_no_display = true;
             }
-            ESP_LOGI(TAG, "T=%.1fC H=%.1f%% M=%d Lraw=%u Lpct=%u%% A(T/H/L)=%d/%d/%d R=%lu hold=%d",
+            ESP_LOGI(TAG, "T=%.1fC H=%.1f%% M=%d L(raw/clamp/med/avg/w)=%u/%u/%u/%u/%u Lpct=%u%% A(T/H/L)=%d/%d/%d R=%lu hold=%d",
                      s.temperature_c,
                      s.humidity_pct,
                      s.motion_detected,
+                     (unsigned)s.raw_light_value,
+                     (unsigned)s.clamped_light_value,
+                     (unsigned)s.median_light_value,
+                     (unsigned)s.avg_light_value,
                      (unsigned)s.weighted_light_value,
                      (unsigned)light_pct,
                      s.temp_alert,
